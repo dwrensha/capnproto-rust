@@ -27,10 +27,12 @@ use Word;
 fn simple_raw_data_struct() {
     let data: &[Word] = &[
         capnp_word!(0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00),
-        capnp_word!(0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef)];
+        capnp_word!(0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef),
+    ];
 
     let reader = ::private::layout::PointerReader::get_root_unchecked(data.as_ptr())
-        .get_struct(ptr::null()).unwrap();
+        .get_struct(ptr::null())
+        .unwrap();
 
     assert_eq!(0xefcdab8967452301u64, reader.get_data_field::<u64>(0));
     assert_eq!(0, reader.get_data_field::<u64>(1)); // past end of struct --> default value
@@ -44,7 +46,7 @@ fn simple_raw_data_struct() {
     assert_eq!(0xab89u16, reader.get_data_field::<u16>(2));
     assert_eq!(0xefcdu16, reader.get_data_field::<u16>(3));
     assert_eq!(0u16, reader.get_data_field::<u16>(4)); // past end of struct --> default value
-    // TODO the rest of uints.
+                                                       // TODO the rest of uints.
 
     // Bits.
     assert_eq!(reader.get_bool_field(0), true);
@@ -56,8 +58,8 @@ fn simple_raw_data_struct() {
     assert_eq!(reader.get_bool_field(6), false);
     assert_eq!(reader.get_bool_field(7), false);
 
-    assert_eq!(reader.get_bool_field(8),  true);
-    assert_eq!(reader.get_bool_field(9),  true);
+    assert_eq!(reader.get_bool_field(8), true);
+    assert_eq!(reader.get_bool_field(9), true);
     assert_eq!(reader.get_bool_field(10), false);
     assert_eq!(reader.get_bool_field(11), false);
     assert_eq!(reader.get_bool_field(12), false);
@@ -68,7 +70,6 @@ fn simple_raw_data_struct() {
     assert_eq!(reader.get_bool_field(63), true);
     assert_eq!(reader.get_bool_field(64), false); // past end of struct --> default value
 }
-
 
 #[test]
 fn bool_list() {
@@ -81,13 +82,14 @@ fn bool_list() {
 
     let data: &[Word] = &[
         capnp_word!(0x01, 0x00, 0x00, 0x00, 0x51, 0x00, 0x00, 0x00),
-        capnp_word!(0x75, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)];
+        capnp_word!(0x75, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
+    ];
 
+    let pointer_reader = ::private::layout::PointerReader::get_root_unchecked(data.as_ptr());
 
-    let pointer_reader =
-        ::private::layout::PointerReader::get_root_unchecked(data.as_ptr());
-
-    let reader = pointer_reader.get_list(::private::layout::ElementSize::Bit, ptr::null()).unwrap();
+    let reader = pointer_reader
+        .get_list(::private::layout::ElementSize::Bit, ptr::null())
+        .unwrap();
 
     assert_eq!(reader.len(), 10);
     assert_eq!(bool::get(&reader, 0), true);
@@ -100,7 +102,6 @@ fn bool_list() {
     assert_eq!(bool::get(&reader, 7), false);
     assert_eq!(bool::get(&reader, 8), false);
     assert_eq!(bool::get(&reader, 9), true);
-
 
     let reader = ::primitive_list::Reader::<bool>::get_from_pointer(&pointer_reader).unwrap();
 
@@ -126,12 +127,10 @@ fn struct_size() {
         capnp_word!(0x0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
     ];
 
-    let pointer_reader =
-        ::private::layout::PointerReader::get_root_unchecked(data.as_ptr());
+    let pointer_reader = ::private::layout::PointerReader::get_root_unchecked(data.as_ptr());
 
     assert_eq!(pointer_reader.total_size().unwrap().word_count, 3);
 }
-
 
 #[test]
 fn struct_list_size() {
@@ -148,8 +147,7 @@ fn struct_list_size() {
     // So there is an inconsistency! total_size() should report the value computed from
     // the struct tag, because that's what is relevent when the data is copied.
 
-    let pointer_reader =
-        ::private::layout::PointerReader::get_root_unchecked(data.as_ptr());
+    let pointer_reader = ::private::layout::PointerReader::get_root_unchecked(data.as_ptr());
 
     assert_eq!(pointer_reader.total_size().unwrap().word_count, 2);
 }
@@ -159,16 +157,13 @@ fn empty_struct_list_size() {
     let data: &[Word] = &[
         // Struct, one pointer
         capnp_word!(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00),
-
         // Inline-composite list, zero words long
         capnp_word!(0x01, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00),
-
         // Tag
         capnp_word!(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
     ];
 
-    let pointer_reader =
-        ::private::layout::PointerReader::get_root_unchecked(data.as_ptr());
+    let pointer_reader = ::private::layout::PointerReader::get_root_unchecked(data.as_ptr());
 
     assert_eq!(2, pointer_reader.total_size().unwrap().word_count);
 }

@@ -19,14 +19,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use capnp::{any_pointer};
+use capnp::any_pointer;
+use capnp::private::capability::{
+    ClientHook, ParamsHook, PipelineHook, PipelineOp, RequestHook, ResultsHook,
+};
 use capnp::Error;
-use capnp::private::capability::{ClientHook, ParamsHook, PipelineHook, PipelineOp,
-                                 RequestHook, ResultsHook};
 
 use capnp::capability::{Promise, RemotePromise};
 
-use std::rc::{Rc};
+use std::rc::Rc;
 
 pub struct Pipeline {
     error: Error,
@@ -34,9 +35,7 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn new(error: Error) -> Pipeline {
-        Pipeline {
-            error: error
-        }
+        Pipeline { error: error }
     }
 }
 
@@ -77,9 +76,7 @@ impl RequestHook for Request {
             pipeline: any_pointer::Pipeline::new(Box::new(pipeline)),
         }
     }
-    fn tail_send(self: Box<Self>)
-                 -> Option<(u32, Promise<(), Error>, Box<PipelineHook>)>
-    {
+    fn tail_send(self: Box<Self>) -> Option<(u32, Promise<(), Error>, Box<PipelineHook>)> {
         None
     }
 }
@@ -108,24 +105,34 @@ impl Client {
 
 impl ClientHook for Client {
     fn add_ref(&self) -> Box<ClientHook> {
-        Box::new(Client { inner: self.inner.clone() } )
+        Box::new(Client {
+            inner: self.inner.clone(),
+        })
     }
-    fn new_call(&self, _interface_id: u64, _method_id: u16,
-                size_hint: Option<::capnp::MessageSize>)
-                -> ::capnp::capability::Request<any_pointer::Owned, any_pointer::Owned>
-    {
-        ::capnp::capability::Request::new(
-            Box::new(Request::new(self.inner.error.clone(), size_hint)))
+    fn new_call(
+        &self,
+        _interface_id: u64,
+        _method_id: u16,
+        size_hint: Option<::capnp::MessageSize>,
+    ) -> ::capnp::capability::Request<any_pointer::Owned, any_pointer::Owned> {
+        ::capnp::capability::Request::new(Box::new(Request::new(
+            self.inner.error.clone(),
+            size_hint,
+        )))
     }
 
-    fn call(&self, _interface_id: u64, _method_id: u16, _params: Box<ParamsHook>, _results: Box<ResultsHook>)
-        -> Promise<(), Error>
-    {
+    fn call(
+        &self,
+        _interface_id: u64,
+        _method_id: u16,
+        _params: Box<ParamsHook>,
+        _results: Box<ResultsHook>,
+    ) -> Promise<(), Error> {
         Promise::err(self.inner.error.clone())
     }
 
     fn get_ptr(&self) -> usize {
-        (self.inner.as_ref()) as * const _ as usize
+        (self.inner.as_ref()) as *const _ as usize
     }
 
     fn get_brand(&self) -> usize {

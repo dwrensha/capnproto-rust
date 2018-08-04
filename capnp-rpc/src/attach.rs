@@ -18,15 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use futures::{Future};
+use futures::Future;
 
-pub struct AttachFuture<F, T> where F: Future {
+pub struct AttachFuture<F, T>
+where
+    F: Future,
+{
     original_future: F,
     value: Option<T>,
 }
 
-impl <F, T> Future for AttachFuture<F, T>
-    where F: Future,
+impl<F, T> Future for AttachFuture<F, T>
+where
+    F: Future,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -42,7 +46,8 @@ impl <F, T> Future for AttachFuture<F, T>
 
 pub trait Attach: Future {
     fn attach<T>(self, value: T) -> AttachFuture<Self, T>
-        where Self: Sized
+    where
+        Self: Sized,
     {
         AttachFuture {
             original_future: self,
@@ -51,4 +56,4 @@ pub trait Attach: Future {
     }
 }
 
-impl <F> Attach for F where F: Future {}
+impl<F> Attach for F where F: Future {}

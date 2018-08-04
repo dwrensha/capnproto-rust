@@ -22,11 +22,11 @@
 extern crate capnp;
 extern crate capnp_futures;
 extern crate futures;
-extern crate tokio_core;
 extern crate mio_uds;
+extern crate tokio_core;
 
 pub mod addressbook_capnp {
-  include!(concat!(env!("OUT_DIR"), "/addressbook_capnp.rs"));
+    include!(concat!(env!("OUT_DIR"), "/addressbook_capnp.rs"));
 }
 
 #[cfg(test)]
@@ -43,7 +43,10 @@ mod tests {
             {
                 let mut alice_phones = alice.reborrow().init_phones(1);
                 alice_phones.reborrow().get(0).set_number("555-1212");
-                alice_phones.reborrow().get(0).set_type(person::phone_number::Type::Mobile);
+                alice_phones
+                    .reborrow()
+                    .get(0)
+                    .set_type(person::phone_number::Type::Mobile);
             }
             alice.get_employment().set_school("MIT");
         }
@@ -56,9 +59,15 @@ mod tests {
             {
                 let mut bob_phones = bob.reborrow().init_phones(2);
                 bob_phones.reborrow().get(0).set_number("555-4567");
-                bob_phones.reborrow().get(0).set_type(person::phone_number::Type::Home);
+                bob_phones
+                    .reborrow()
+                    .get(0)
+                    .set_type(person::phone_number::Type::Home);
                 bob_phones.reborrow().get(1).set_number("555-7654");
-                bob_phones.reborrow().get(1).set_type(person::phone_number::Type::Work);
+                bob_phones
+                    .reborrow()
+                    .get(1)
+                    .set_type(person::phone_number::Type::Work);
             }
             bob.get_employment().set_unemployed(());
         }
@@ -79,12 +88,12 @@ mod tests {
 
     #[test]
     fn foo() {
-        use tokio_core::reactor;
-        use mio_uds::UnixStream;
         use capnp;
         use capnp_futures;
         use futures::future::Future;
         use futures::stream::Stream;
+        use mio_uds::UnixStream;
+        use tokio_core::reactor;
 
         use std::cell::Cell;
         use std::rc::Rc;
@@ -113,14 +122,17 @@ mod tests {
 
         let mut m = capnp::message::Builder::new_default();
         populate_address_book(m.init_root());
-        handle.spawn(sender.send(m).map_err(|_| panic!("cancelled")).map(|_| { println!("SENT"); ()}));
+        handle.spawn(sender.send(m).map_err(|_| panic!("cancelled")).map(|_| {
+            println!("SENT");
+            ()
+        }));
         drop(sender);
 
         l.run(io).expect("running");
 
         assert_eq!(messages_read1.get(), 1);
     }
-/*
+    /*
     fn fill_and_send_message(mut message: message::Builder<message::HeapAllocator>) {
         {
             let mut address_book = message.init_root::<address_book::Builder>();

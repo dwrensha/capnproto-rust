@@ -19,8 +19,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use capnp_rpc::{RpcSystem, twoparty, rpc_twoparty_capnp};
-use http_capnp::{outgoing_http, http_session};
+use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
+use http_capnp::{http_session, outgoing_http};
 
 use capnp::capability::Promise;
 use capnp::Error;
@@ -36,9 +36,7 @@ struct OutgoingHttp {
 
 impl OutgoingHttp {
     fn new(handle: reactor::Handle) -> OutgoingHttp {
-        OutgoingHttp {
-            handle: handle,
-        }
+        OutgoingHttp { handle: handle }
     }
 }
 
@@ -46,14 +44,15 @@ impl outgoing_http::Server for OutgoingHttp {
     fn new_session(
         &mut self,
         params: outgoing_http::NewSessionParams,
-        mut results: outgoing_http::NewSessionResults)
-        -> Promise<(), Error>
-    {
+        mut results: outgoing_http::NewSessionResults,
+    ) -> Promise<(), Error> {
         let session = HttpSession::new(
             ::tokio_curl::Session::new(self.handle.clone()),
-            pry!(pry!(params.get()).get_base_url()).to_string());
-        results.get().set_session(
-            http_session::ToClient::new(session).from_server::<::capnp_rpc::Server>());
+            pry!(pry!(params.get()).get_base_url()).to_string(),
+        );
+        results
+            .get()
+            .set_session(http_session::ToClient::new(session).from_server::<::capnp_rpc::Server>());
         Promise::ok(())
     }
 }
@@ -84,9 +83,8 @@ impl http_session::Server for HttpSession {
     fn get(
         &mut self,
         params: http_session::GetParams,
-        mut results: http_session::GetResults)
-        -> Promise<(), Error>
-    {
+        mut results: http_session::GetResults,
+    ) -> Promise<(), Error> {
         let path = pry!(pry!(params.get()).get_path());
         let mut url = self.base_url.clone();
         url.push_str(path);
@@ -96,31 +94,36 @@ impl http_session::Server for HttpSession {
 
         // We need this channel to work around the `Send` bound required by write_function().
         let (tx, stream) = ::futures::sync::mpsc::unbounded::<Vec<u8>>();
-        pry!(easy.write_function(move |data| {
-            // Error case should only happen if this request has been canceled.
-            let _ = tx.unbounded_send(data.into());
-            Ok(data.len())
-        }).map_err(from_curl_error));
+        pry!(
+            easy.write_function(move |data| {
+                // Error case should only happen if this request has been canceled.
+                let _ = tx.unbounded_send(data.into());
+                Ok(data.len())
+            }).map_err(from_curl_error)
+        );
 
         Promise::from_future(
-            self.session.perform(easy).map_err(from_perform_error).and_then(|mut response| {
-                response.response_code().map_err(from_curl_error)
-            }).and_then(move |code| {
-                results.get().set_response_code(code);
-                stream.collect().and_then(move |writes| {
-                    results.get().set_body(
-                        &writes.concat());
-                    Ok(())
-                }).map_err(|()| unreachable!())
-            }))
+            self.session
+                .perform(easy)
+                .map_err(from_perform_error)
+                .and_then(|mut response| response.response_code().map_err(from_curl_error))
+                .and_then(move |code| {
+                    results.get().set_response_code(code);
+                    stream
+                        .collect()
+                        .and_then(move |writes| {
+                            results.get().set_body(&writes.concat());
+                            Ok(())
+                        }).map_err(|()| unreachable!())
+                }),
+        )
     }
 
     fn post(
         &mut self,
         _params: http_session::PostParams,
-        _results: http_session::PostResults)
-        -> Promise<(), Error>
-    {
+        _results: http_session::PostResults,
+    ) -> Promise<(), Error> {
         // TODO
         Promise::err(Error::unimplemented(format!("post() is unimplemented")))
     }
@@ -137,11 +140,15 @@ pub fn main() {
     let mut core = reactor::Core::new().unwrap();
     let handle = core.handle();
 
-    let addr = args[2].to_socket_addrs().unwrap().next().expect("could not parse address");
+    let addr = args[2]
+        .to_socket_addrs()
+        .unwrap()
+        .next()
+        .expect("could not parse address");
     let socket = ::tokio_core::net::TcpListener::bind(&addr, &handle).unwrap();
 
-    let proxy = outgoing_http::ToClient::new(
-        OutgoingHttp::new(handle.clone())).from_server::<::capnp_rpc::Server>();
+    let proxy = outgoing_http::ToClient::new(OutgoingHttp::new(handle.clone()))
+        .from_server::<::capnp_rpc::Server>();
 
     let handle1 = handle.clone();
     let done = socket.incoming().for_each(move |(socket, _addr)| {
@@ -149,9 +156,12 @@ pub fn main() {
         let (reader, writer) = socket.split();
         let handle = handle1.clone();
 
-        let network =
-            twoparty::VatNetwork::new(reader, writer,
-                                      rpc_twoparty_capnp::Side::Server, Default::default());
+        let network = twoparty::VatNetwork::new(
+            reader,
+            writer,
+            rpc_twoparty_capnp::Side::Server,
+            Default::default(),
+        );
 
         let rpc_system = RpcSystem::new(Box::new(network), Some(proxy.clone().client));
 

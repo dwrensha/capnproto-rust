@@ -39,6 +39,3 @@ mod layout_test;
 pub struct RawSchema<'a> {
     pub blob: &'a [Word],
 }
-
-
-

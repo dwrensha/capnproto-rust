@@ -22,25 +22,28 @@
 //! Reading and writing of messages using the
 //! [packed stream encoding](https://capnproto.org/encoding.html#packing).
 
+use std::io::{BufRead, Read, Write};
 use std::{io, mem, ptr, slice};
-use std::io::{Read, BufRead, Write};
 
-use serialize;
-use Result;
 use message;
+use serialize;
 use util::read_exact;
+use Result;
 
-struct PackedRead<R> where R: BufRead {
+struct PackedRead<R>
+where
+    R: BufRead,
+{
     inner: R,
 }
 
-impl <R> PackedRead<R> where R: BufRead {
-
+impl<R> PackedRead<R>
+where
+    R: BufRead,
+{
     fn get_read_buffer(&mut self) -> io::Result<(*const u8, *const u8)> {
         let buf = try!(self.inner.fill_buf());
-        unsafe {
-            Ok((buf.as_ptr(), buf.get_unchecked(buf.len())))
-        }
+        unsafe { Ok((buf.as_ptr(), buf.get_unchecked(buf.len()))) }
     }
 }
 
@@ -67,12 +70,16 @@ macro_rules! refresh_buffer(
         );
     );
 
-impl <R> Read for PackedRead<R> where R: BufRead {
-
+impl<R> Read for PackedRead<R>
+where
+    R: BufRead,
+{
     fn read(&mut self, out_buf: &mut [u8]) -> io::Result<usize> {
         let len = out_buf.len();
 
-        if len == 0 { return Ok(0); }
+        if len == 0 {
+            return Ok(0);
+        }
 
         assert!(len % 8 == 0, "PackedRead reads must be word-aligned.");
 
@@ -88,11 +95,13 @@ impl <R> Read for PackedRead<R> where R: BufRead {
             }
 
             loop {
-
                 let tag: u8;
 
-                assert_eq!(ptr_sub(out, out_buf.as_mut_ptr()) % 8, 0,
-                           "Output pointer should always be aligned here.");
+                assert_eq!(
+                    ptr_sub(out, out_buf.as_mut_ptr()) % 8,
+                    0,
+                    "Output pointer should always be aligned here."
+                );
 
                 if ptr_sub(in_end, in_ptr) < 10 {
                     if out >= out_end {
@@ -114,8 +123,15 @@ impl <R> Read for PackedRead<R> where R: BufRead {
                     for i in 0..8 {
                         if (tag & (1u8 << i)) != 0 {
                             if ptr_sub(in_end, in_ptr) == 0 {
-                                refresh_buffer!(self, size, in_ptr, in_end,
-                                                out, out_buf, buffer_begin);
+                                refresh_buffer!(
+                                    self,
+                                    size,
+                                    in_ptr,
+                                    in_end,
+                                    out,
+                                    out_buf,
+                                    buffer_begin
+                                );
                             }
                             *out = *in_ptr;
                             out = out.offset(1);
@@ -127,8 +143,7 @@ impl <R> Read for PackedRead<R> where R: BufRead {
                     }
 
                     if ptr_sub(in_end, in_ptr) == 0 && (tag == 0 || tag == 0xff) {
-                        refresh_buffer!(self, size, in_ptr, in_end,
-                                        out, out_buf, buffer_begin);
+                        refresh_buffer!(self, size, in_ptr, in_end, out, out_buf, buffer_begin);
                     }
                 } else {
                     tag = *in_ptr;
@@ -142,30 +157,37 @@ impl <R> Read for PackedRead<R> where R: BufRead {
                     }
                 }
                 if tag == 0 {
-                    assert!(ptr_sub(in_end, in_ptr) > 0,
-                            "Should always have non-empty buffer here.");
+                    assert!(
+                        ptr_sub(in_end, in_ptr) > 0,
+                        "Should always have non-empty buffer here."
+                    );
 
-                    let run_length : usize = (*in_ptr) as usize * 8;
+                    let run_length: usize = (*in_ptr) as usize * 8;
                     in_ptr = in_ptr.offset(1);
 
                     if run_length > ptr_sub(out_end, out) {
-                        return Err(io::Error::new(io::ErrorKind::Other,
-                                                  "Packed input did not end cleanly on a segment boundary."));
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            "Packed input did not end cleanly on a segment boundary.",
+                        ));
                     }
 
                     ptr::write_bytes(out, 0, run_length);
                     out = out.offset(run_length as isize);
-
                 } else if tag == 0xff {
-                    assert!(ptr_sub(in_end, in_ptr) > 0,
-                            "Should always have non-empty buffer here");
+                    assert!(
+                        ptr_sub(in_end, in_ptr) > 0,
+                        "Should always have non-empty buffer here"
+                    );
 
-                    let mut run_length : usize = (*in_ptr) as usize * 8;
+                    let mut run_length: usize = (*in_ptr) as usize * 8;
                     in_ptr = in_ptr.offset(1);
 
                     if run_length > ptr_sub(out_end, out) {
-                        return Err(io::Error::new(io::ErrorKind::Other,
-                                                  "Packed input did not end cleanly on a segment boundary."));
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            "Packed input did not end cleanly on a segment boundary.",
+                        ));
                     }
 
                     let in_remaining = ptr_sub(in_end, in_ptr);
@@ -211,20 +233,28 @@ impl <R> Read for PackedRead<R> where R: BufRead {
 }
 
 /// Reads a packed message from a stream using the provided options.
-pub fn read_message<R>(read: &mut R,
-                       options: message::ReaderOptions)
-                       -> Result<::message::Reader<serialize::OwnedSegments>>
-    where R: BufRead
+pub fn read_message<R>(
+    read: &mut R,
+    options: message::ReaderOptions,
+) -> Result<::message::Reader<serialize::OwnedSegments>>
+where
+    R: BufRead,
 {
     let mut packed_read = PackedRead { inner: read };
     serialize::read_message(&mut packed_read, options)
 }
 
-struct PackedWrite<W> where W: Write {
+struct PackedWrite<W>
+where
+    W: Write,
+{
     inner: W,
 }
 
-impl <W> Write for PackedWrite<W> where W: Write {
+impl<W> Write for PackedWrite<W>
+where
+    W: Write,
+{
     // This implementation assumes that the data in `in_buf` is actually
     // eight-byte aligned.
     fn write(&mut self, in_buf: &[u8]) -> io::Result<usize> {
@@ -236,7 +266,6 @@ impl <W> Write for PackedWrite<W> where W: Write {
             let in_end: *const u8 = in_buf.get_unchecked(in_buf.len());
 
             while in_ptr < in_end {
-
                 if buf_idx + 10 > buf.len() {
                     //# Oops, we're out of space. We need at least 10
                     //# bytes for the fast path, since we don't
@@ -288,9 +317,14 @@ impl <W> Write for PackedWrite<W> where W: Write {
                 buf_idx += bit7 as usize;
                 in_ptr = in_ptr.offset(1);
 
-                let tag: u8 = (bit0 << 0) | (bit1 << 1) | (bit2 << 2) | (bit3 << 3)
-                            | (bit4 << 4) | (bit5 << 5) | (bit6 << 6) | (bit7 << 7);
-
+                let tag: u8 = (bit0 << 0)
+                    | (bit1 << 1)
+                    | (bit2 << 2)
+                    | (bit3 << 3)
+                    | (bit4 << 4)
+                    | (bit5 << 5)
+                    | (bit6 << 6)
+                    | (bit7 << 7);
 
                 *buf.get_unchecked_mut(tag_pos) = tag;
 
@@ -300,8 +334,8 @@ impl <W> Write for PackedWrite<W> where W: Write {
                     //# one).
 
                     // Here we use our assumption that the input buffer is 8-byte aligned.
-                    let mut in_word : *const u64 = in_ptr as *const u64;
-                    let mut limit : *const u64 = in_end as *const u64;
+                    let mut in_word: *const u64 = in_ptr as *const u64;
+                    let mut limit: *const u64 = in_end as *const u64;
                     if ptr_sub(limit, in_word) > 255 {
                         limit = in_word.offset(255);
                     }
@@ -349,7 +383,10 @@ impl <W> Write for PackedWrite<W> where W: Write {
 
                     try!(self.inner.write_all(&buf[..buf_idx]));
                     buf_idx = 0;
-                    try!(self.inner.write_all(slice::from_raw_parts::<u8>(run_start, count)));
+                    try!(
+                        self.inner
+                            .write_all(slice::from_raw_parts::<u8>(run_start, count))
+                    );
                 }
             }
 
@@ -358,12 +395,16 @@ impl <W> Write for PackedWrite<W> where W: Write {
         }
     }
 
-   fn flush(&mut self) -> io::Result<()> { self.inner.flush() }
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
 }
 
 /// Writes a packed message to a stream.
-pub fn write_message<W, A>(write: &mut W, message : &::message::Builder<A>) -> io::Result<()>
-    where W: Write, A: ::message::Allocator
+pub fn write_message<W, A>(write: &mut W, message: &::message::Builder<A>) -> io::Result<()>
+where
+    W: Write,
+    A: ::message::Allocator,
 {
     let mut packed_write = PackedWrite { inner: write };
     serialize::write_message(&mut packed_write, message)
@@ -372,18 +413,18 @@ pub fn write_message<W, A>(write: &mut W, message : &::message::Builder<A>) -> i
 #[cfg(test)]
 mod tests {
 
+    use std::io::{Read, Write};
     use std::iter;
-    use std::io::{Write, Read};
 
-    use std::io::Cursor;
     use quickcheck::{quickcheck, TestResult};
+    use std::io::Cursor;
 
-    use {Word};
-    use message::{ReaderOptions};
+    use super::read_message;
+    use message::ReaderOptions;
     use serialize::test::write_message_segments;
     use serialize_packed::{PackedRead, PackedWrite};
-    use super::read_message;
     use util::read_exact;
+    use Word;
 
     pub fn check_unpacks_to(packed: &[u8], unpacked: &[u8]) {
         let mut packed_read = PackedRead { inner: packed };
@@ -406,9 +447,11 @@ mod tests {
         // --------
         // write
 
-        let mut bytes : Vec<u8> = iter::repeat(0u8).take(packed.len()).collect();
+        let mut bytes: Vec<u8> = iter::repeat(0u8).take(packed.len()).collect();
         {
-            let mut packed_write = PackedWrite { inner: &mut bytes[..] };
+            let mut packed_write = PackedWrite {
+                inner: &mut bytes[..],
+            };
             packed_write.write(unpacked).unwrap();
         }
 
@@ -422,35 +465,70 @@ mod tests {
     #[test]
     pub fn simple_packing() {
         check_packing(&[], &[]);
-        check_packing(&[0; 8], &[0,0]);
-        check_packing(&[0,0,12,0,0,34,0,0], &[0x24,12,34]);
-        check_packing(&[1,3,2,4,5,7,6,8], &[0xff,1,3,2,4,5,7,6,8,0]);
-        check_packing(&[0,0,0,0,0,0,0,0,1,3,2,4,5,7,6,8], &[0,0,0xff,1,3,2,4,5,7,6,8,0]);
-        check_packing(&[0,0,12,0,0,34,0,0,1,3,2,4,5,7,6,8], &[0x24,12,34,0xff,1,3,2,4,5,7,6,8,0]);
-        check_packing(&[1,3,2,4,5,7,6,8,8,6,7,4,5,2,3,1], &[0xff,1,3,2,4,5,7,6,8,1,8,6,7,4,5,2,3,1]);
+        check_packing(&[0; 8], &[0, 0]);
+        check_packing(&[0, 0, 12, 0, 0, 34, 0, 0], &[0x24, 12, 34]);
+        check_packing(
+            &[1, 3, 2, 4, 5, 7, 6, 8],
+            &[0xff, 1, 3, 2, 4, 5, 7, 6, 8, 0],
+        );
+        check_packing(
+            &[0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 2, 4, 5, 7, 6, 8],
+            &[0, 0, 0xff, 1, 3, 2, 4, 5, 7, 6, 8, 0],
+        );
+        check_packing(
+            &[0, 0, 12, 0, 0, 34, 0, 0, 1, 3, 2, 4, 5, 7, 6, 8],
+            &[0x24, 12, 34, 0xff, 1, 3, 2, 4, 5, 7, 6, 8, 0],
+        );
+        check_packing(
+            &[1, 3, 2, 4, 5, 7, 6, 8, 8, 6, 7, 4, 5, 2, 3, 1],
+            &[0xff, 1, 3, 2, 4, 5, 7, 6, 8, 1, 8, 6, 7, 4, 5, 2, 3, 1],
+        );
 
         check_packing(
-            &[1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8, 0,2,4,0,9,0,5,1],
-            &[0xff,1,2,3,4,5,6,7,8, 3, 1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8,
-              0xd6,2,4,9,5,1]);
+            &[
+                1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4,
+                5, 6, 7, 8, 0, 2, 4, 0, 9, 0, 5, 1,
+            ],
+            &[
+                0xff, 1, 2, 3, 4, 5, 6, 7, 8, 3, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1,
+                2, 3, 4, 5, 6, 7, 8, 0xd6, 2, 4, 9, 5, 1,
+            ],
+        );
         check_packing(
-            &[1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8, 6,2,4,3,9,0,5,1, 1,2,3,4,5,6,7,8, 0,2,4,0,9,0,5,1],
-            &[0xff,1,2,3,4,5,6,7,8, 3, 1,2,3,4,5,6,7,8, 6,2,4,3,9,0,5,1, 1,2,3,4,5,6,7,8,
-              0xd6,2,4,9,5,1]);
+            &[
+                1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 6, 2, 4, 3, 9, 0, 5, 1, 1, 2, 3, 4,
+                5, 6, 7, 8, 0, 2, 4, 0, 9, 0, 5, 1,
+            ],
+            &[
+                0xff, 1, 2, 3, 4, 5, 6, 7, 8, 3, 1, 2, 3, 4, 5, 6, 7, 8, 6, 2, 4, 3, 9, 0, 5, 1, 1,
+                2, 3, 4, 5, 6, 7, 8, 0xd6, 2, 4, 9, 5, 1,
+            ],
+        );
 
         check_packing(
-            &[8,0,100,6,0,1,1,2, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,1,0,2,0,3,1],
-            &[0xed,8,100,6,1,1,2, 0,2, 0xd4,1,2,3,1]);
+            &[
+                8, 0, 100, 6, 0, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 3, 1,
+            ],
+            &[0xed, 8, 100, 6, 1, 1, 2, 0, 2, 0xd4, 1, 2, 3, 1],
+        );
 
-        check_packing(&[0; 16], &[0,1]);
-        check_packing(&[0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0], &[0,2]);
+        check_packing(&[0; 16], &[0, 1]);
+        check_packing(
+            &[
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            &[0, 2],
+        );
     }
 
     #[test]
     fn check_round_trip() {
         fn round_trip(segments: Vec<Vec<Word>>) -> TestResult {
             use message::ReaderSegments;
-            if segments.len() == 0 { return TestResult::discard(); }
+            if segments.len() == 0 {
+                return TestResult::discard();
+            }
             let mut cursor = Cursor::new(Vec::new());
 
             write_message_segments(&mut PackedWrite { inner: &mut cursor }, &segments);
@@ -458,9 +536,11 @@ mod tests {
             let message = read_message(&mut cursor, ReaderOptions::new()).unwrap();
             let result_segments = message.into_segments();
 
-            TestResult::from_bool(segments.iter().enumerate().all(|(i, segment)| {
-                &segment[..] == result_segments.get_segment(i as u32).unwrap()
-            }))
+            TestResult::from_bool(
+                segments.iter().enumerate().all(|(i, segment)| {
+                    &segment[..] == result_segments.get_segment(i as u32).unwrap()
+                }),
+            )
         }
 
         quickcheck(round_trip as fn(Vec<Vec<Word>>) -> TestResult);
@@ -469,7 +549,6 @@ mod tests {
     #[test]
     fn fuzz_unpack() {
         fn unpack(packed: Vec<u8>) -> TestResult {
-
             let len = packed.len();
             let mut packed_read = PackedRead { inner: &packed[..] };
 
@@ -485,14 +564,16 @@ mod tests {
     #[test]
     fn did_not_end_cleanly_on_a_segment_boundary() {
         let packed = &[0xff, 1, 2, 3, 4, 5, 6, 7, 8, 37, 1, 2];
-        let mut packed_read = PackedRead {inner: &packed[..]};
+        let mut packed_read = PackedRead { inner: &packed[..] };
 
         let mut bytes: Vec<u8> = vec![0; 200];
         match read_exact(&mut packed_read, &mut bytes[..]) {
             Ok(_) => panic!("should have been an error"),
             Err(e) => {
-                assert_eq!(::std::error::Error::description(&e),
-                           "Packed input did not end cleanly on a segment boundary.");
+                assert_eq!(
+                    ::std::error::Error::description(&e),
+                    "Packed input did not end cleanly on a segment boundary."
+                );
             }
         }
     }
@@ -500,13 +581,16 @@ mod tests {
     #[test]
     fn premature_end_of_packed_input() {
         fn helper(packed: &[u8]) {
-            let mut packed_read = PackedRead {inner: packed};
+            let mut packed_read = PackedRead { inner: packed };
 
             let mut bytes: Vec<u8> = vec![0; 200];
             match read_exact(&mut packed_read, &mut bytes[..]) {
                 Ok(_) => panic!("should have been an error"),
                 Err(e) => {
-                    assert_eq!(::std::error::Error::description(&e), "Premature end of packed input.");
+                    assert_eq!(
+                        ::std::error::Error::description(&e),
+                        "Premature end of packed input."
+                    );
                 }
             }
         }
@@ -526,10 +610,11 @@ mod tests {
 
         check_unpacks_to(
             packed_buf,
-            &[4, 0, 0, 0, 1, 0, 0, 0,
-              0, 0, 0, 0, 0, 0, 0, 0,
-              0, 0, 0, 0, 0, 0, 0, 0,
-              0, 0, 0, 0, 0, 0, 0, 0]);
+            &[
+                4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+            ],
+        );
 
         let mut cursor = Cursor::new(packed_buf);
 

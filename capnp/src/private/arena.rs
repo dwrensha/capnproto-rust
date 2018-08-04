@@ -22,9 +22,9 @@ use std::cell::{Cell, RefCell};
 use std::slice;
 use std::u64;
 
-use private::units::*;
 use message;
 use message::{Allocator, ReaderSegments};
+use private::units::*;
 use {Error, OutputSegments, Result, Word};
 
 pub type SegmentId = u32;
@@ -35,7 +35,9 @@ pub struct ReadLimiter {
 
 impl ReadLimiter {
     pub fn new(limit: u64) -> ReadLimiter {
-        ReadLimiter { limit: Cell::new(limit) }
+        ReadLimiter {
+            limit: Cell::new(limit),
+        }
     }
 
     #[inline]
@@ -52,7 +54,12 @@ impl ReadLimiter {
 
 pub trait ReaderArena {
     fn get_segment(&self, id: u32) -> Result<(*const Word, u32)>;
-    fn check_offset(&self, segment_id: u32, start: *const Word, offset_in_words: i32) -> Result<*const Word>;
+    fn check_offset(
+        &self,
+        segment_id: u32,
+        start: *const Word,
+        offset_in_words: i32,
+    ) -> Result<*const Word>;
     fn contains_interval(&self, segment_id: u32, start: *const Word, size: usize) -> Result<()>;
     fn amplified_read(&self, virtual_amount: u64) -> Result<()>;
 
@@ -66,11 +73,11 @@ pub struct ReaderArenaImpl<S> {
     read_limiter: ReadLimiter,
 }
 
-impl <S> ReaderArenaImpl <S> where S: ReaderSegments {
-    pub fn new(segments: S,
-               options: message::ReaderOptions)
-               -> Self
-    {
+impl<S> ReaderArenaImpl<S>
+where
+    S: ReaderSegments,
+{
+    pub fn new(segments: S, options: message::ReaderOptions) -> Self {
         let limiter = ReadLimiter::new(options.traversal_limit_in_words);
         ReaderArenaImpl {
             segments: segments,
@@ -83,7 +90,10 @@ impl <S> ReaderArenaImpl <S> where S: ReaderSegments {
     }
 }
 
-impl <S> ReaderArena for ReaderArenaImpl<S> where S: ReaderSegments {
+impl<S> ReaderArena for ReaderArenaImpl<S>
+where
+    S: ReaderSegments,
+{
     fn get_segment<'a>(&'a self, id: u32) -> Result<(*const Word, u32)> {
         match self.segments.get_segment(id) {
             Some(seg) => Ok((seg.as_ptr(), seg.len() as u32)),
@@ -91,14 +101,22 @@ impl <S> ReaderArena for ReaderArenaImpl<S> where S: ReaderSegments {
         }
     }
 
-    fn check_offset(&self, segment_id: u32, start: *const Word, offset_in_words: i32) -> Result<*const Word> {
+    fn check_offset(
+        &self,
+        segment_id: u32,
+        start: *const Word,
+        offset_in_words: i32,
+    ) -> Result<*const Word> {
         let (segment_start, segment_len) = try!(self.get_segment(segment_id));
         let this_start: usize = segment_start as usize;
         let this_size: usize = segment_len as usize * BYTES_PER_WORD;
         let offset: i64 = offset_in_words as i64 * BYTES_PER_WORD as i64;
         let start_idx = start as usize;
-        if start_idx < this_start || ((start_idx - this_start) as i64 + offset) as usize > this_size {
-            Err(Error::failed(format!("message contained out-of-bounds pointer")))
+        if start_idx < this_start || ((start_idx - this_start) as i64 + offset) as usize > this_size
+        {
+            Err(Error::failed(format!(
+                "message contained out-of-bounds pointer"
+            )))
         } else {
             unsafe { Ok(start.offset(offset_in_words as isize)) }
         }
@@ -112,7 +130,9 @@ impl <S> ReaderArena for ReaderArenaImpl<S> where S: ReaderSegments {
         let size = size_in_words * BYTES_PER_WORD;
 
         if !(start >= this_start && start - this_start + size <= this_size) {
-            Err(Error::failed(format!("message contained out-of-bounds pointer")))
+            Err(Error::failed(format!(
+                "message contained out-of-bounds pointer"
+            )))
         } else {
             self.read_limiter.can_read(size_in_words as u64)
         }
@@ -136,7 +156,10 @@ pub trait BuilderArena: ReaderArena {
     fn as_reader<'a>(&'a self) -> &'a ReaderArena;
 }
 
-pub struct BuilderArenaImplInner<A> where A: Allocator {
+pub struct BuilderArenaImplInner<A>
+where
+    A: Allocator,
+{
     allocator: A,
 
     // TODO(perf): Try using smallvec to avoid heap allocations in the single-segment case?
@@ -144,11 +167,17 @@ pub struct BuilderArenaImplInner<A> where A: Allocator {
     allocated: Vec<u32>, // number of words allocated for each segment.
 }
 
-pub struct BuilderArenaImpl<A> where A: Allocator {
-    inner: RefCell<BuilderArenaImplInner<A>>
+pub struct BuilderArenaImpl<A>
+where
+    A: Allocator,
+{
+    inner: RefCell<BuilderArenaImplInner<A>>,
 }
 
-impl <A> BuilderArenaImpl<A> where A: Allocator {
+impl<A> BuilderArenaImpl<A>
+where
+    A: Allocator,
+{
     pub fn new(allocator: A) -> Self {
         BuilderArenaImpl {
             inner: RefCell::new(BuilderArenaImplInner {
@@ -171,7 +200,8 @@ impl <A> BuilderArenaImpl<A> where A: Allocator {
             // The user must mutably borrow the `message::Builder` to be able to modify segment memory.
             // No such borrow will be possible while `self` is still immutably borrowed from this method,
             // so returning this slice is safe.
-            let slice = unsafe { slice::from_raw_parts(seg.0 as *const _, reff.allocated[0] as usize) };
+            let slice =
+                unsafe { slice::from_raw_parts(seg.0 as *const _, reff.allocated[0] as usize) };
             OutputSegments::SingleSegment([slice])
         } else {
             let mut v = Vec::with_capacity(reff.allocated.len());
@@ -179,7 +209,9 @@ impl <A> BuilderArenaImpl<A> where A: Allocator {
                 let seg = reff.segments[idx];
 
                 // See safety argument in above branch.
-                let slice = unsafe { slice::from_raw_parts(seg.0 as *const _, reff.allocated[idx] as usize) };
+                let slice = unsafe {
+                    slice::from_raw_parts(seg.0 as *const _, reff.allocated[idx] as usize)
+                };
                 v.push(slice);
             }
             OutputSegments::MultiSegment(v)
@@ -191,14 +223,22 @@ impl <A> BuilderArenaImpl<A> where A: Allocator {
     }
 }
 
-impl <A> ReaderArena for BuilderArenaImpl<A> where A: Allocator {
+impl<A> ReaderArena for BuilderArenaImpl<A>
+where
+    A: Allocator,
+{
     fn get_segment(&self, id: u32) -> Result<(*const Word, u32)> {
         let borrow = self.inner.borrow();
         let seg = borrow.segments[id as usize];
         Ok((seg.0 as *const _, seg.1))
     }
 
-    fn check_offset(&self, _segment_id: u32, start: *const Word, offset_in_words: i32) -> Result<*const Word> {
+    fn check_offset(
+        &self,
+        _segment_id: u32,
+        start: *const Word,
+        offset_in_words: i32,
+    ) -> Result<*const Word> {
         unsafe { Ok(start.offset(offset_in_words as isize)) }
     }
 
@@ -211,7 +251,10 @@ impl <A> ReaderArena for BuilderArenaImpl<A> where A: Allocator {
     }
 }
 
-impl <A> BuilderArenaImplInner<A> where A: Allocator {
+impl<A> BuilderArenaImplInner<A>
+where
+    A: Allocator,
+{
     fn allocate_segment(&mut self, minimum_size: WordCount32) -> Result<()> {
         let seg = self.allocator.allocate_segment(minimum_size);
         self.segments.push(seg);
@@ -220,7 +263,8 @@ impl <A> BuilderArenaImplInner<A> where A: Allocator {
     }
 
     fn allocate(&mut self, segment_id: u32, amount: WordCount32) -> Option<u32> {
-        if amount > self.get_segment_mut(segment_id).1 as u32 - self.allocated[segment_id as usize] {
+        if amount > self.get_segment_mut(segment_id).1 as u32 - self.allocated[segment_id as usize]
+        {
             None
         } else {
             let result = self.allocated[segment_id as usize];
@@ -232,7 +276,7 @@ impl <A> BuilderArenaImplInner<A> where A: Allocator {
     fn allocate_anywhere(&mut self, amount: u32) -> (SegmentId, u32) {
         // first try the existing segments, then try allocating a new segment.
         let allocated_len = self.allocated.len() as u32;
-        for segment_id in 0.. allocated_len {
+        for segment_id in 0..allocated_len {
             match self.allocate(segment_id, amount) {
                 Some(idx) => return (segment_id, idx),
                 None => (),
@@ -242,17 +286,22 @@ impl <A> BuilderArenaImplInner<A> where A: Allocator {
         // Need to allocate a new segment.
 
         self.allocate_segment(amount).expect("allocate new segment");
-        (allocated_len,
-         self.allocate(allocated_len, amount).expect("use freshly-allocated segment"))
+        (
+            allocated_len,
+            self.allocate(allocated_len, amount)
+                .expect("use freshly-allocated segment"),
+        )
     }
 
     fn get_segment_mut(&mut self, id: u32) -> (*mut Word, u32) {
         self.segments[id as usize]
     }
-
 }
 
-impl <A> BuilderArena for BuilderArenaImpl<A> where A: Allocator {
+impl<A> BuilderArena for BuilderArenaImpl<A>
+where
+    A: Allocator,
+{
     fn allocate(&self, segment_id: u32, amount: WordCount32) -> Option<u32> {
         self.inner.borrow_mut().allocate(segment_id, amount)
     }
@@ -270,7 +319,10 @@ impl <A> BuilderArena for BuilderArenaImpl<A> where A: Allocator {
     }
 }
 
-impl <A> Drop for BuilderArenaImplInner<A> where A: Allocator {
+impl<A> Drop for BuilderArenaImplInner<A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
         if self.allocated.len() > 0 {
             self.allocator.pre_drop(self.allocated[0]);
@@ -285,7 +337,12 @@ impl ReaderArena for NullArena {
         Err(Error::failed(format!("tried to read from null arena")))
     }
 
-    fn check_offset(&self, _segment_id: u32, start: *const Word, offset_in_words: i32) -> Result<*const Word> {
+    fn check_offset(
+        &self,
+        _segment_id: u32,
+        start: *const Word,
+        offset_in_words: i32,
+    ) -> Result<*const Word> {
         unsafe { Ok(start.offset(offset_in_words as isize)) }
     }
 
@@ -315,4 +372,3 @@ impl BuilderArena for NullArena {
         self
     }
 }
-

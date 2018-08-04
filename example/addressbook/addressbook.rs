@@ -21,7 +21,7 @@
 
 extern crate capnp;
 pub mod addressbook_capnp {
-  include!(concat!(env!("OUT_DIR"), "/addressbook_capnp.rs"));
+    include!(concat!(env!("OUT_DIR"), "/addressbook_capnp.rs"));
 }
 
 pub mod addressbook {
@@ -43,7 +43,10 @@ pub mod addressbook {
                 {
                     let mut alice_phones = alice.reborrow().init_phones(1);
                     alice_phones.reborrow().get(0).set_number("555-1212");
-                    alice_phones.reborrow().get(0).set_type(person::phone_number::Type::Mobile);
+                    alice_phones
+                        .reborrow()
+                        .get(0)
+                        .set_type(person::phone_number::Type::Mobile);
                 }
                 alice.get_employment().set_school("MIT");
             }
@@ -56,9 +59,15 @@ pub mod addressbook {
                 {
                     let mut bob_phones = bob.reborrow().init_phones(2);
                     bob_phones.reborrow().get(0).set_number("555-4567");
-                    bob_phones.reborrow().get(0).set_type(person::phone_number::Type::Home);
+                    bob_phones
+                        .reborrow()
+                        .get(0)
+                        .set_type(person::phone_number::Type::Home);
                     bob_phones.reborrow().get(1).set_number("555-7654");
-                    bob_phones.reborrow().get(1).set_type(person::phone_number::Type::Work);
+                    bob_phones
+                        .reborrow()
+                        .get(1)
+                        .set_type(person::phone_number::Type::Work);
                 }
                 bob.get_employment().set_unemployed(());
             }
@@ -68,10 +77,11 @@ pub mod addressbook {
     }
 
     pub fn print_address_book() -> ::capnp::Result<()> {
-
         let stdin = ::std::io::stdin();
-        let message_reader = try!(serialize_packed::read_message(&mut stdin.lock(),
-                                                                 ::capnp::message::ReaderOptions::new()));
+        let message_reader = try!(serialize_packed::read_message(
+            &mut stdin.lock(),
+            ::capnp::message::ReaderOptions::new()
+        ));
         let address_book = try!(message_reader.get_root::<address_book::Reader>());
 
         for person in try!(address_book.get_people()).iter() {
@@ -98,7 +108,7 @@ pub mod addressbook {
                 Ok(person::employment::SelfEmployed(())) => {
                     println!("  self-employed");
                 }
-                Err(::capnp::NotInSchema(_)) => { }
+                Err(::capnp::NotInSchema(_)) => {}
             }
         }
         Ok(())
@@ -106,16 +116,14 @@ pub mod addressbook {
 }
 
 pub fn main() {
-
-    let args : Vec<String> = ::std::env::args().collect();
+    let args: Vec<String> = ::std::env::args().collect();
     if args.len() < 2 {
         println!("usage: $ {} [write | read]", args[0]);
     } else {
         match &*args[1] {
             "write" => addressbook::write_address_book().unwrap(),
-            "read" =>  addressbook::print_address_book().unwrap(),
-            _ => {println!("unrecognized argument") }
+            "read" => addressbook::print_address_book().unwrap(),
+            _ => println!("unrecognized argument"),
         }
     }
-
 }

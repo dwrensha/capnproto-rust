@@ -30,6 +30,6 @@ extern crate quickcheck;
 pub use read_stream::ReadStream;
 pub use write_queue::{write_queue, Sender, WriteQueue};
 
-pub mod serialize;
 mod read_stream;
+pub mod serialize;
 mod write_queue;

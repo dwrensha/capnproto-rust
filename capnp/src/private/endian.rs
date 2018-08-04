@@ -28,18 +28,25 @@ pub struct WireValue<T> {
     value: T,
 }
 
-impl<T> WireValue<T> where T: Endian {
+impl<T> WireValue<T>
+where
+    T: Endian,
+{
     /// Reads the value, swapping bytes on big-endian processors.
     #[inline]
-    pub fn get(&self) -> T { self.value.get() }
+    pub fn get(&self) -> T {
+        self.value.get()
+    }
 
     /// Writes the value, swapping bytes on big-endian processors.
     #[inline]
-    pub fn set(&mut self, value: T) { self.value.set(value) }
+    pub fn set(&mut self, value: T) {
+        self.value.set(value)
+    }
 }
 
 /// Something that can appear in a `WireValue`.
-pub trait Endian : Sized {
+pub trait Endian: Sized {
     /// Reads the value, swapping bytes on big-endian processors.
     fn get(&self) -> Self;
 
@@ -86,7 +93,7 @@ impl Endian for f32 {
     fn get(&self) -> f32 {
         unsafe { mem::transmute(mem::transmute::<f32, u32>(*self).to_le()) }
     }
-    fn set(&mut self, value : f32) {
+    fn set(&mut self, value: f32) {
         *self = unsafe { mem::transmute(mem::transmute::<f32, u32>(value).to_le()) };
     }
 }
@@ -95,7 +102,7 @@ impl Endian for f64 {
     fn get(&self) -> f64 {
         unsafe { mem::transmute(mem::transmute::<f64, u64>(*self).to_le()) }
     }
-    fn set(&mut self, value : f64) {
+    fn set(&mut self, value: f64) {
         *self = unsafe { mem::transmute(mem::transmute::<f64, u64>(value).to_le()) };
     }
 }

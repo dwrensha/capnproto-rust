@@ -19,55 +19,65 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use futures::{Future, task};
+use futures::{task, Future};
 
 use std::cell::RefCell;
-use std::rc::{Rc};
+use std::rc::Rc;
 
 enum State<T1, T2, E>
-    where E: Clone,
+where
+    E: Clone,
 {
     NotReady(Option<task::Task>, Option<task::Task>),
     Ready(Option<Result<T1, E>>, Option<Result<T2, E>>),
 }
 
 struct Inner<F, T1, T2, E>
-    where F: Future<Item = (T1, T2), Error = E>,
-          E: Clone,
+where
+    F: Future<Item = (T1, T2), Error = E>,
+    E: Clone,
 {
     original_future: RefCell<F>,
-    state: RefCell<State<T1, T2, E>>
+    state: RefCell<State<T1, T2, E>>,
 }
 
 pub struct SplitLeft<F, T1, T2, E>
-    where F: Future<Item = (T1, T2), Error = E>,
-          E: Clone,
+where
+    F: Future<Item = (T1, T2), Error = E>,
+    E: Clone,
 {
     inner: Rc<Inner<F, T1, T2, E>>,
 }
 
 pub struct SplitRight<F, T1, T2, E>
-    where F: Future<Item = (T1, T2), Error = E>,
-          E: Clone,
+where
+    F: Future<Item = (T1, T2), Error = E>,
+    E: Clone,
 {
     inner: Rc<Inner<F, T1, T2, E>>,
 }
 
 pub fn split<F, T1, T2, E>(f: F) -> (SplitLeft<F, T1, T2, E>, SplitRight<F, T1, T2, E>)
-    where F: Future<Item = (T1, T2), Error = E>,
-          E: Clone,
+where
+    F: Future<Item = (T1, T2), Error = E>,
+    E: Clone,
 {
-    let inner =
-        Rc::new(Inner {
-            original_future: RefCell::new(f),
-            state: RefCell::new(State::NotReady(None, None)),
-        });
-    (SplitLeft { inner: inner.clone() }, SplitRight { inner: inner })
+    let inner = Rc::new(Inner {
+        original_future: RefCell::new(f),
+        state: RefCell::new(State::NotReady(None, None)),
+    });
+    (
+        SplitLeft {
+            inner: inner.clone(),
+        },
+        SplitRight { inner: inner },
+    )
 }
 
-impl <F, T1, T2, E> Drop for SplitLeft<F, T1, T2, E>
-    where F: Future<Item = (T1, T2), Error = E>,
-          E: Clone,
+impl<F, T1, T2, E> Drop for SplitLeft<F, T1, T2, E>
+where
+    F: Future<Item = (T1, T2), Error = E>,
+    E: Clone,
 {
     fn drop(&mut self) {
         match *self.inner.state.borrow_mut() {
@@ -76,14 +86,15 @@ impl <F, T1, T2, E> Drop for SplitLeft<F, T1, T2, E>
                     t.notify()
                 }
             }
-            _ => ()
+            _ => (),
         }
     }
 }
 
-impl <F, T1, T2, E> Drop for SplitRight<F, T1, T2, E>
-    where F: Future<Item = (T1, T2), Error = E>,
-          E: Clone,
+impl<F, T1, T2, E> Drop for SplitRight<F, T1, T2, E>
+where
+    F: Future<Item = (T1, T2), Error = E>,
+    E: Clone,
 {
     fn drop(&mut self) {
         match *self.inner.state.borrow_mut() {
@@ -92,28 +103,26 @@ impl <F, T1, T2, E> Drop for SplitRight<F, T1, T2, E>
                     t.notify()
                 }
             }
-            _ => ()
+            _ => (),
         }
     }
 }
 
-impl <F, T1, T2, E> Future for SplitLeft<F, T1, T2, E>
-    where F: Future<Item = (T1, T2), Error = E>,
-          E: Clone,
+impl<F, T1, T2, E> Future for SplitLeft<F, T1, T2, E>
+where
+    F: Future<Item = (T1, T2), Error = E>,
+    E: Clone,
 {
     type Item = T1;
     type Error = E;
     fn poll(&mut self) -> Result<::futures::Async<Self::Item>, Self::Error> {
         match *self.inner.state.borrow_mut() {
             State::NotReady(_, _) => (),
-            State::Ready(ref mut t1, _) => {
-                match t1.take() {
-                    Some(Ok(v)) => return Ok(::futures::Async::Ready(v)),
-                    Some(Err(e)) => return Err(e),
-                    None => panic!("polled already-done future"),
-                }
-
-            }
+            State::Ready(ref mut t1, _) => match t1.take() {
+                Some(Ok(v)) => return Ok(::futures::Async::Ready(v)),
+                Some(Err(e)) => return Err(e),
+                None => panic!("polled already-done future"),
+            },
         }
 
         let done_val = match self.inner.original_future.borrow_mut().poll() {
@@ -123,9 +132,9 @@ impl <F, T1, T2, E> Future for SplitLeft<F, T1, T2, E>
                     State::NotReady(ref mut left_task, _) => {
                         *left_task = Some(task::current());
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
-                return Ok(::futures::Async::NotReady)
+                return Ok(::futures::Async::NotReady);
             }
             Err(e) => Err(e),
         };
@@ -136,7 +145,7 @@ impl <F, T1, T2, E> Future for SplitLeft<F, T1, T2, E>
                     t.notify()
                 }
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
 
         match done_val {
@@ -152,22 +161,21 @@ impl <F, T1, T2, E> Future for SplitLeft<F, T1, T2, E>
     }
 }
 
-impl <F, T1, T2, E> Future for SplitRight<F, T1, T2, E>
-    where F: Future<Item = (T1, T2), Error = E>,
-          E: Clone,
+impl<F, T1, T2, E> Future for SplitRight<F, T1, T2, E>
+where
+    F: Future<Item = (T1, T2), Error = E>,
+    E: Clone,
 {
     type Item = T2;
     type Error = E;
     fn poll(&mut self) -> Result<::futures::Async<Self::Item>, Self::Error> {
         match *self.inner.state.borrow_mut() {
             State::NotReady(_, _) => (),
-            State::Ready(_, ref mut t2) => {
-                match t2.take() {
-                    Some(Ok(v)) => return Ok(::futures::Async::Ready(v)),
-                    Some(Err(e)) => return Err(e),
-                    None => panic!("polled already-done future"),
-                }
-            }
+            State::Ready(_, ref mut t2) => match t2.take() {
+                Some(Ok(v)) => return Ok(::futures::Async::Ready(v)),
+                Some(Err(e)) => return Err(e),
+                None => panic!("polled already-done future"),
+            },
         }
 
         let done_val = match self.inner.original_future.borrow_mut().poll() {
@@ -177,9 +185,9 @@ impl <F, T1, T2, E> Future for SplitRight<F, T1, T2, E>
                     State::NotReady(_, ref mut right_task) => {
                         *right_task = Some(task::current());
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
-                return Ok(::futures::Async::NotReady)
+                return Ok(::futures::Async::NotReady);
             }
             Err(e) => Err(e),
         };
@@ -190,7 +198,7 @@ impl <F, T1, T2, E> Future for SplitRight<F, T1, T2, E>
                     t.notify()
                 }
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
 
         match done_val {
@@ -208,10 +216,10 @@ impl <F, T1, T2, E> Future for SplitRight<F, T1, T2, E>
 
 #[cfg(test)]
 mod test {
-    use futures::{Future};
-    use std::cell::RefCell;
-    use std::rc::{Rc};
     use super::split;
+    use futures::Future;
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
     #[test]
     fn drop_in_poll() {
@@ -219,9 +227,9 @@ mod test {
         let slot2 = slot.clone();
         let (f1, f2) = split(::futures::future::lazy(move || {
             drop(slot2.borrow_mut().take().unwrap());
-            Ok::<_,()>((11,"foo"))
+            Ok::<_, ()>((11, "foo"))
         }));
-        let future2 = Box::new(f2) as Box<Future<Item=_, Error=_>>;
+        let future2 = Box::new(f2) as Box<Future<Item = _, Error = _>>;
         *slot.borrow_mut() = Some(future2);
         assert_eq!(f1.wait().unwrap(), 11);
     }

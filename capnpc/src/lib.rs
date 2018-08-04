@@ -73,11 +73,16 @@ use std::path::{Path, PathBuf};
 
 fn run_command(mut command: ::std::process::Command) -> ::capnp::Result<()> {
     let mut p = try!(command.spawn());
-    try!(::codegen::main(p.stdout.take().unwrap(),
-                         ::std::path::Path::new(&::std::env::var("OUT_DIR").unwrap())));
+    try!(::codegen::main(
+        p.stdout.take().unwrap(),
+        ::std::path::Path::new(&::std::env::var("OUT_DIR").unwrap())
+    ));
     let exit_status = try!(p.wait());
     if !exit_status.success() {
-        Err(::capnp::Error::failed(format!("Non-success exit status: {}", exit_status)))
+        Err(::capnp::Error::failed(format!(
+            "Non-success exit status: {}",
+            exit_status
+        )))
     } else {
         Ok(())
     }
@@ -104,7 +109,8 @@ impl CompilerCommand {
 
     /// Adds a file to be compiled.
     pub fn file<'a, P>(&'a mut self, path: P) -> &'a mut CompilerCommand
-        where P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
         self.files.push(path.as_ref().to_path_buf());
         self
@@ -113,7 +119,8 @@ impl CompilerCommand {
     /// Adds a --src-prefix flag. For all files specified for compilation that start
     /// with `prefix`, removes the prefix when computing output filenames.
     pub fn src_prefix<'a, P>(&'a mut self, prefix: P) -> &'a mut CompilerCommand
-        where P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
         self.src_prefixes.push(prefix.as_ref().to_path_buf());
         self
@@ -122,7 +129,8 @@ impl CompilerCommand {
     /// Adds an --import_path flag. Adds `dir` to the list of directories searched
     /// for absolute imports.
     pub fn import_path<'a, P>(&'a mut self, dir: P) -> &'a mut CompilerCommand
-        where P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
         self.import_paths.push(dir.as_ref().to_path_buf());
         self
@@ -164,6 +172,8 @@ impl CompilerCommand {
                 "Error while trying to execute `capnp compile`: {}.  \
                  Please verify that version 0.5.2 or higher of the capnp executable \
                  is installed on your system. See https://capnproto.org/install.html",
-                error))})
+                error
+            ))
+        })
     }
 }

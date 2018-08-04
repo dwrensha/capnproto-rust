@@ -20,14 +20,14 @@
 // THE SOFTWARE.
 
 use common::*;
-use eval_capnp::{expression, evaluation_result, Operation};
+use eval_capnp::{evaluation_result, expression, Operation};
 
-fn make_expression(rng: &mut FastRand, mut exp: expression::Builder, depth : u32) -> i32 {
+fn make_expression(rng: &mut FastRand, mut exp: expression::Builder, depth: u32) -> i32 {
     exp.set_op(unsafe {
-            ::std::mem::transmute(rng.next_less_than( Operation::Modulus as u32 + 1) as u16)});
+        ::std::mem::transmute(rng.next_less_than(Operation::Modulus as u32 + 1) as u16)
+    });
 
-    let left : i32 =
-    if rng.next_less_than(8) < depth {
+    let left: i32 = if rng.next_less_than(8) < depth {
         let tmp = (rng.next_less_than(128) + 1) as i32;
         exp.reborrow().get_left().set_value(tmp);
         tmp
@@ -35,8 +35,7 @@ fn make_expression(rng: &mut FastRand, mut exp: expression::Builder, depth : u32
         make_expression(rng, exp.reborrow().get_left().init_expression(), depth + 1)
     };
 
-    let right : i32 =
-    if rng.next_less_than(8) < depth {
+    let right: i32 = if rng.next_less_than(8) < depth {
         let tmp = (rng.next_less_than(128) + 1) as i32;
         exp.reborrow().get_right().set_value(tmp);
         tmp
@@ -45,11 +44,11 @@ fn make_expression(rng: &mut FastRand, mut exp: expression::Builder, depth : u32
     };
 
     match exp.get_op().unwrap() {
-        Operation::Add => { return left + right }
-        Operation::Subtract => { return left - right }
-        Operation::Multiply => { return left * right }
-        Operation::Divide => { return div(left, right) }
-        Operation::Modulus => { return modulus(left, right) }
+        Operation::Add => return left + right,
+        Operation::Subtract => return left - right,
+        Operation::Multiply => return left * right,
+        Operation::Divide => return div(left, right),
+        Operation::Modulus => return modulus(left, right),
     }
 }
 
@@ -83,19 +82,28 @@ impl ::TestCase for Eval {
         make_expression(rng, request, 0)
     }
 
-    fn handle_request(&self, request: expression::Reader, mut response: evaluation_result::Builder)
-        -> ::capnp::Result<()>
-    {
+    fn handle_request(
+        &self,
+        request: expression::Reader,
+        mut response: evaluation_result::Builder,
+    ) -> ::capnp::Result<()> {
         response.set_value(try!(evaluate_expression(request)));
         Ok(())
     }
 
-    fn check_response(&self, response: evaluation_result::Reader, expected : i32) -> ::capnp::Result<()> {
+    fn check_response(
+        &self,
+        response: evaluation_result::Reader,
+        expected: i32,
+    ) -> ::capnp::Result<()> {
         if response.get_value() == expected {
             Ok(())
         } else {
-            Err(::capnp::Error::failed(
-                format!("check_response() expected {} but got {}", expected, response.get_value())))
+            Err(::capnp::Error::failed(format!(
+                "check_response() expected {} but got {}",
+                expected,
+                response.get_value()
+            )))
         }
     }
 }

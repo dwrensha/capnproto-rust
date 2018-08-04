@@ -23,16 +23,18 @@ use std::io;
 
 /// Reads into `buf` until it is full. Returns an error if EOF is encountered first.
 pub fn read_exact<R>(read: &mut R, buf: &mut [u8]) -> io::Result<()>
-where R: io::Read {
+where
+    R: io::Read,
+{
     let mut pos = 0;
     let len = buf.len();
     while pos < len {
-        let buf1 = &mut buf[pos ..];
+        let buf1 = &mut buf[pos..];
         match read.read(buf1) {
             Ok(n) => {
                 pos += n;
                 if n == 0 {
-                    return Err(io::Error::new(io::ErrorKind::Other, "Premature EOF"))
+                    return Err(io::Error::new(io::ErrorKind::Other, "Premature EOF"));
                 }
             }
             Err(e) => {

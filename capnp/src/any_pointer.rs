@@ -23,14 +23,14 @@
 
 use capability::FromClientHook;
 use private::capability::{ClientHook, PipelineHook, PipelineOp};
-use private::layout::{PointerReader, PointerBuilder};
-use traits::{FromPointerReader, FromPointerBuilder, SetPointerBuilder};
+use private::layout::{PointerBuilder, PointerReader};
+use traits::{FromPointerBuilder, FromPointerReader, SetPointerBuilder};
 use Result;
 
 #[derive(Copy, Clone)]
 pub struct Owned(());
 
-impl <'a> ::traits::Owned<'a> for Owned {
+impl<'a> ::traits::Owned<'a> for Owned {
     type Reader = Reader<'a>;
     type Builder = Builder<'a>;
 }
@@ -41,10 +41,10 @@ impl ::traits::Pipelined for Owned {
 
 #[derive(Copy, Clone)]
 pub struct Reader<'a> {
-    reader: PointerReader<'a>
+    reader: PointerReader<'a>,
 }
 
-impl <'a> Reader<'a> {
+impl<'a> Reader<'a> {
     #[inline]
     pub fn new<'b>(reader: PointerReader<'b>) -> Reader<'b> {
         Reader { reader: reader }
@@ -76,9 +76,10 @@ impl <'a> Reader<'a> {
 
         for op in ops {
             match *op {
-                PipelineOp::Noop =>  { }
+                PipelineOp::Noop => {}
                 PipelineOp::GetPointerField(idx) => {
-                    pointer = try!(pointer.get_struct(::std::ptr::null())).get_pointer_field(idx as usize);
+                    pointer = try!(pointer.get_struct(::std::ptr::null()))
+                        .get_pointer_field(idx as usize);
                 }
             }
         }
@@ -87,38 +88,43 @@ impl <'a> Reader<'a> {
     }
 }
 
-impl <'a> FromPointerReader<'a> for Reader<'a> {
+impl<'a> FromPointerReader<'a> for Reader<'a> {
     fn get_from_pointer(reader: &PointerReader<'a>) -> Result<Reader<'a>> {
         Ok(Reader { reader: *reader })
     }
 }
 
-impl <'a> ::traits::SetPointerBuilder<Builder<'a>> for Reader<'a> {
-    fn set_pointer_builder<'b>(mut pointer: ::private::layout::PointerBuilder<'b>,
-                               value: Reader<'a>,
-                               canonicalize: bool) -> Result<()> {
+impl<'a> ::traits::SetPointerBuilder<Builder<'a>> for Reader<'a> {
+    fn set_pointer_builder<'b>(
+        mut pointer: ::private::layout::PointerBuilder<'b>,
+        value: Reader<'a>,
+        canonicalize: bool,
+    ) -> Result<()> {
         pointer.copy_from(value.reader, canonicalize)
     }
 }
 
-impl <'a> ::traits::Imbue<'a> for Reader<'a> {
+impl<'a> ::traits::Imbue<'a> for Reader<'a> {
     fn imbue(&mut self, cap_table: &'a ::private::layout::CapTable) {
-        self.reader.imbue(::private::layout::CapTableReader::Plain(cap_table));
+        self.reader
+            .imbue(::private::layout::CapTableReader::Plain(cap_table));
     }
 }
 
 pub struct Builder<'a> {
-    builder: PointerBuilder<'a>
+    builder: PointerBuilder<'a>,
 }
 
-impl <'a> Builder<'a> {
+impl<'a> Builder<'a> {
     #[inline]
-    pub fn new<'b>(builder: PointerBuilder<'a>) -> Builder<'a> {
-        Builder { builder: builder }
+    pub fn new(builder: PointerBuilder<'a>) -> Builder<'a> {
+        Builder { builder }
     }
 
     pub fn reborrow<'b>(&'b mut self) -> Builder<'b> {
-        Builder { builder: self.builder.borrow() }
+        Builder {
+            builder: self.builder.borrow(),
+        }
     }
 
     pub fn is_null(&self) -> bool {
@@ -135,11 +141,11 @@ impl <'a> Builder<'a> {
         self.builder.as_reader().total_size()
     }
 
-    pub fn get_as<T : FromPointerBuilder<'a>>(self) -> Result<T> {
+    pub fn get_as<T: FromPointerBuilder<'a>>(self) -> Result<T> {
         FromPointerBuilder::get_from_pointer(self.builder)
     }
 
-    pub fn init_as<T : FromPointerBuilder<'a>>(self) -> T {
+    pub fn init_as<T: FromPointerBuilder<'a>>(self) -> T {
         FromPointerBuilder::init_pointer(self.builder, 0)
     }
 
@@ -147,7 +153,7 @@ impl <'a> Builder<'a> {
         FromPointerBuilder::init_pointer(self.builder, size)
     }
 
-    pub fn set_as<To, From : SetPointerBuilder<To>>(self, value: From) -> Result<()> {
+    pub fn set_as<To, From: SetPointerBuilder<To>>(self, value: From) -> Result<()> {
         SetPointerBuilder::<To>::set_pointer_builder(self.builder, value, false)
     }
 
@@ -163,11 +169,13 @@ impl <'a> Builder<'a> {
 
     #[inline]
     pub fn as_reader(self) -> Reader<'a> {
-        Reader { reader: self.builder.as_reader() }
+        Reader {
+            reader: self.builder.as_reader(),
+        }
     }
 }
 
-impl <'a> FromPointerBuilder<'a> for Builder<'a> {
+impl<'a> FromPointerBuilder<'a> for Builder<'a> {
     fn init_pointer(mut builder: PointerBuilder<'a>, _len: u32) -> Builder<'a> {
         if !builder.is_null() {
             builder.clear();
@@ -179,9 +187,10 @@ impl <'a> FromPointerBuilder<'a> for Builder<'a> {
     }
 }
 
-impl <'a> ::traits::ImbueMut<'a> for Builder<'a> {
+impl<'a> ::traits::ImbueMut<'a> for Builder<'a> {
     fn imbue_mut(&mut self, cap_table: &'a mut ::private::layout::CapTable) {
-        self.builder.imbue(::private::layout::CapTableBuilder::Plain(cap_table));
+        self.builder
+            .imbue(::private::layout::CapTableBuilder::Plain(cap_table));
     }
 }
 
@@ -194,11 +203,17 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn new(hook: Box<PipelineHook>) -> Pipeline {
-        Pipeline { hook: hook, ops: Vec::new() }
+        Pipeline {
+            hook: hook,
+            ops: Vec::new(),
+        }
     }
 
     pub fn noop(&self) -> Pipeline {
-        Pipeline { hook: self.hook.add_ref(), ops: self.ops.clone() }
+        Pipeline {
+            hook: self.hook.add_ref(),
+            ops: self.ops.clone(),
+        }
     }
 
     pub fn get_pointer_field(&self, pointer_index: u16) -> Pipeline {
@@ -207,7 +222,10 @@ impl Pipeline {
             new_ops.push(*op)
         }
         new_ops.push(PipelineOp::GetPointerField(pointer_index));
-        Pipeline { hook : self.hook.add_ref(), ops: new_ops }
+        Pipeline {
+            hook: self.hook.add_ref(),
+            ops: new_ops,
+        }
     }
 
     pub fn as_cap(&self) -> Box<ClientHook> {

@@ -20,13 +20,14 @@
 // THE SOFTWARE.
 
 extern crate capnp;
-#[macro_use] extern crate capnp_rpc;
+#[macro_use]
+extern crate capnp_rpc;
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 
 pub mod calculator_capnp {
-  include!(concat!(env!("OUT_DIR"), "/calculator_capnp.rs"));
+    include!(concat!(env!("OUT_DIR"), "/calculator_capnp.rs"));
 }
 
 pub mod client;
@@ -38,7 +39,7 @@ pub fn main() {
         match &args[1][..] {
             "client" => return client::main(),
             "server" => return server::main(),
-            _ => ()
+            _ => (),
         }
     }
 

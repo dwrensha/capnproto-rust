@@ -19,9 +19,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use rand::*;
+use carsales_capnp::{car, parking_lot, total_value, Color};
 use common::*;
-use carsales_capnp::{parking_lot, total_value, Color, car};
+use rand::*;
 
 trait CarValue {
     fn car_value(self) -> ::capnp::Result<u64>;
@@ -79,8 +79,8 @@ macro_rules! car_value_impl(
 car_value_impl!(Reader);
 car_value_impl!(Builder);
 
-const MAKES : [&'static str; 5] = ["Toyota", "GM", "Ford", "Honda", "Tesla"];
-const MODELS : [&'static str; 6] = ["Camry", "Prius", "Volt", "Accord", "Leaf", "Model S"];
+const MAKES: [&'static str; 5] = ["Toyota", "GM", "Ford", "Honda", "Tesla"];
+const MODELS: [&'static str; 6] = ["Camry", "Prius", "Volt", "Accord", "Leaf", "Model S"];
 
 pub fn random_car(rng: &mut FastRand, mut car: car::Builder) {
     use std::mem::transmute;
@@ -88,7 +88,7 @@ pub fn random_car(rng: &mut FastRand, mut car: car::Builder) {
     car.set_make(MAKES[rng.next_less_than(MAKES.len() as u32) as usize]);
     car.set_model(MODELS[rng.next_less_than(MODELS.len() as u32) as usize]);
 
-    car.set_color(unsafe {transmute(rng.next_less_than(Color::Silver as u32 + 1) as u16) });
+    car.set_color(unsafe { transmute(rng.next_less_than(Color::Silver as u32 + 1) as u16) });
     car.set_seats(2 + rng.next_less_than(6) as u8);
     car.set_doors(2 + rng.next_less_than(3) as u8);
 
@@ -139,7 +139,7 @@ impl ::TestCase for CarSales {
     fn setup_request(&self, rng: &mut FastRand, request: parking_lot::Builder) -> u64 {
         let mut result = 0;
         let mut cars = request.init_cars(rng.next_less_than(200));
-        for ii in 0.. cars.len() {
+        for ii in 0..cars.len() {
             let mut car = cars.reborrow().get(ii);
             random_car(rng, car.reborrow());
             result += car.car_value().unwrap();
@@ -148,9 +148,11 @@ impl ::TestCase for CarSales {
         result
     }
 
-    fn handle_request(&self, request: parking_lot::Reader, mut response: total_value::Builder)
-                      -> ::capnp::Result<()>
-    {
+    fn handle_request(
+        &self,
+        request: parking_lot::Reader,
+        mut response: total_value::Builder,
+    ) -> ::capnp::Result<()> {
         let mut result = 0;
         for car in try!(request.get_cars()).iter() {
             result += try!(car.car_value());
@@ -163,8 +165,11 @@ impl ::TestCase for CarSales {
         if response.get_amount() == expected {
             Ok(())
         } else {
-            Err(::capnp::Error::failed(
-                format!("check_response() expected {} but got {}", expected, response.get_amount())))
+            Err(::capnp::Error::failed(format!(
+                "check_response() expected {} but got {}",
+                expected,
+                response.get_amount()
+            )))
         }
     }
 }

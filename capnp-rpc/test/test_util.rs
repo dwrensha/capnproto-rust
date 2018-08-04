@@ -19,7 +19,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-
 use test_capnp::{test_all_types, TestEnum};
 
 pub fn init_test_message(mut builder: test_all_types::Builder) {
@@ -56,7 +55,9 @@ pub fn init_test_message(mut builder: test_all_types::Builder) {
         {
             let mut sub_sub_builder = sub_builder.reborrow().init_struct_field();
             sub_sub_builder.set_text_field("nested");
-            sub_sub_builder.init_struct_field().set_text_field("really nested");
+            sub_sub_builder
+                .init_struct_field()
+                .set_text_field("really nested");
         }
         sub_builder.set_enum_field(TestEnum::Baz);
 
@@ -101,9 +102,18 @@ pub fn init_test_message(mut builder: test_all_types::Builder) {
         // ...
         {
             let mut struct_list = sub_builder.reborrow().init_struct_list(3);
-            struct_list.reborrow().get(0).set_text_field("x structlist 1");
-            struct_list.reborrow().get(1).set_text_field("x structlist 2");
-            struct_list.reborrow().get(2).set_text_field("x structlist 3");
+            struct_list
+                .reborrow()
+                .get(0)
+                .set_text_field("x structlist 1");
+            struct_list
+                .reborrow()
+                .get(1)
+                .set_text_field("x structlist 2");
+            struct_list
+                .reborrow()
+                .get(2)
+                .set_text_field("x structlist 3");
         }
 
         let mut enum_list = sub_builder.reborrow().init_enum_list(3);

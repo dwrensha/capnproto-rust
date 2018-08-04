@@ -24,16 +24,15 @@
 use std::convert::From;
 
 use any_pointer;
-use private::arena::{BuilderArenaImpl, ReaderArenaImpl, BuilderArena, ReaderArena};
+use private::arena::{BuilderArena, BuilderArenaImpl, ReaderArena, ReaderArenaImpl};
 use private::layout;
 use private::units::BYTES_PER_WORD;
-use traits::{FromPointerReader, FromPointerBuilder, SetPointerBuilder, Owned};
+use traits::{FromPointerBuilder, FromPointerReader, Owned, SetPointerBuilder};
 use {OutputSegments, Result, Word};
 
 /// Options controlling how data is read.
 #[derive(Clone, Copy, Debug)]
 pub struct ReaderOptions {
-
     /// Limits how many total words of data are allowed to be traversed. Traversal is counted when
     /// a new struct or list builder is obtained, e.g. from a get() accessor. This means that calling
     /// the getter for the same sub-struct multiple times will cause it to be double-counted. Once
@@ -62,9 +61,10 @@ pub struct ReaderOptions {
     pub nesting_limit: i32,
 }
 
-pub const DEFAULT_READER_OPTIONS: ReaderOptions =
-    ReaderOptions { traversal_limit_in_words: 8 * 1024 * 1024, nesting_limit: 64 };
-
+pub const DEFAULT_READER_OPTIONS: ReaderOptions = ReaderOptions {
+    traversal_limit_in_words: 8 * 1024 * 1024,
+    nesting_limit: 64,
+};
 
 impl Default for ReaderOptions {
     fn default() -> ReaderOptions {
@@ -73,7 +73,9 @@ impl Default for ReaderOptions {
 }
 
 impl ReaderOptions {
-    pub fn new() -> ReaderOptions { DEFAULT_READER_OPTIONS }
+    pub fn new() -> ReaderOptions {
+        DEFAULT_READER_OPTIONS
+    }
 
     pub fn nesting_limit<'a>(&'a mut self, value: i32) -> &'a mut ReaderOptions {
         self.nesting_limit = value;
@@ -107,13 +109,13 @@ pub struct SegmentArray<'a> {
     segments: &'a [&'a [Word]],
 }
 
-impl <'a> SegmentArray<'a> {
+impl<'a> SegmentArray<'a> {
     pub fn new(segments: &'a [&'a [Word]]) -> SegmentArray<'a> {
         SegmentArray { segments: segments }
     }
 }
 
-impl <'b> ReaderSegments for SegmentArray<'b> {
+impl<'b> ReaderSegments for SegmentArray<'b> {
     fn get_segment<'a>(&'a self, id: u32) -> Option<&'a [Word]> {
         self.segments.get(id as usize).map(|slice| *slice)
     }
@@ -123,8 +125,8 @@ impl <'b> ReaderSegments for SegmentArray<'b> {
     }
 }
 
-impl <'b> ReaderSegments for [&'b [Word]] {
-    fn get_segment<'a>(&'a self, id: u32) -> Option<&'a[Word]> {
+impl<'b> ReaderSegments for [&'b [Word]] {
+    fn get_segment<'a>(&'a self, id: u32) -> Option<&'a [Word]> {
         self.get(id as usize).map(|slice| *slice)
     }
 
@@ -134,12 +136,18 @@ impl <'b> ReaderSegments for [&'b [Word]] {
 }
 
 /// A container used to read a message.
-pub struct Reader<S> where S: ReaderSegments {
+pub struct Reader<S>
+where
+    S: ReaderSegments,
+{
     arena: ReaderArenaImpl<S>,
     nesting_limit: i32,
 }
 
-impl <S> Reader<S> where S: ReaderSegments {
+impl<S> Reader<S>
+where
+    S: ReaderSegments,
+{
     pub fn new(segments: S, options: ReaderOptions) -> Self {
         Reader {
             arena: ReaderArenaImpl::new(segments, options),
@@ -150,7 +158,11 @@ impl <S> Reader<S> where S: ReaderSegments {
     fn get_root_internal<'a>(&'a self) -> Result<any_pointer::Reader<'a>> {
         let (segment_start, _seg_len) = try!(self.arena.get_segment(0));
         let pointer_reader = try!(layout::PointerReader::get_root(
-            &self.arena, 0, segment_start, self.nesting_limit));
+            &self.arena,
+            0,
+            segment_start,
+            self.nesting_limit
+        ));
         Ok(any_pointer::Reader::new(pointer_reader))
     }
 
@@ -172,15 +184,20 @@ impl <S> Reader<S> where S: ReaderSegments {
             // segments there are?
 
             // There is more than one segment, so the message cannot be canonical.
-            return Ok(false)
+            return Ok(false);
         }
 
         let pointer_reader = try!(layout::PointerReader::get_root(
-            &self.arena, 0, segment_start, self.nesting_limit));
-        let read_head = ::std::cell::Cell::new(unsafe {segment_start.offset(1)});
+            &self.arena,
+            0,
+            segment_start,
+            self.nesting_limit
+        ));
+        let read_head = ::std::cell::Cell::new(unsafe { segment_start.offset(1) });
         let root_is_canonical = try!(pointer_reader.is_canonical(&read_head));
-        let all_words_consumed =
-            (read_head.get() as usize - segment_start as usize) / BYTES_PER_WORD == seg_len as usize;
+        let all_words_consumed = (read_head.get() as usize - segment_start as usize)
+            / BYTES_PER_WORD
+            == seg_len as usize;
         Ok(root_is_canonical && all_words_consumed)
     }
 
@@ -210,16 +227,19 @@ impl <S> Reader<S> where S: ReaderSegments {
 
 /// A message reader whose value is known to be of type `T`.
 pub struct TypedReader<S, T>
-    where S: ReaderSegments,
-          T: for<'a> Owned<'a> {
+where
+    S: ReaderSegments,
+    T: for<'a> Owned<'a>,
+{
     marker: ::std::marker::PhantomData<T>,
     message: Reader<S>,
 }
 
-impl <S, T> TypedReader<S, T>
-    where S: ReaderSegments,
-          T : for<'a> Owned<'a> {
-
+impl<S, T> TypedReader<S, T>
+where
+    S: ReaderSegments,
+    T: for<'a> Owned<'a>,
+{
     pub fn new(message: Reader<S>) -> Self {
         TypedReader {
             marker: ::std::marker::PhantomData,
@@ -227,7 +247,7 @@ impl <S, T> TypedReader<S, T>
         }
     }
 
-    pub fn get<'a> (&'a self) -> Result<<T as Owned<'a>>::Reader> {
+    pub fn get<'a>(&'a self) -> Result<<T as Owned<'a>>::Reader> {
         self.message.get_root()
     }
 
@@ -236,19 +256,21 @@ impl <S, T> TypedReader<S, T>
     }
 }
 
-impl <S, T> From<Reader<S>> for TypedReader<S, T>
-    where S: ReaderSegments,
-          T: for<'a> Owned<'a> {
-
+impl<S, T> From<Reader<S>> for TypedReader<S, T>
+where
+    S: ReaderSegments,
+    T: for<'a> Owned<'a>,
+{
     fn from(message: Reader<S>) -> TypedReader<S, T> {
         TypedReader::new(message)
     }
 }
 
-impl <A, T> From<Builder<A>> for TypedReader<Builder<A>, T>
-    where A: Allocator,
-          T: for<'a> Owned<'a> {
-
+impl<A, T> From<Builder<A>> for TypedReader<Builder<A>, T>
+where
+    A: Allocator,
+    T: for<'a> Owned<'a>,
+{
     fn from(message: Builder<A>) -> TypedReader<Builder<A>, T> {
         let reader = message.into_reader();
         reader.into_typed()
@@ -282,7 +304,10 @@ pub trait Allocator {
 */
 
 /// A container used to build a message.
-pub struct Builder<A> where A: Allocator {
+pub struct Builder<A>
+where
+    A: Allocator,
+{
     arena: BuilderArenaImpl<A>,
     cap_table: Vec<Option<Box<::private::capability::ClientHook>>>,
 }
@@ -292,7 +317,7 @@ pub struct Builder<A> where A: Allocator {
 //   in fact safe to send to other threads. Perhaps we should remove
 //   the Builder::cap_table field, requiring imbue_mut() to be called
 //   manually when the situation calls for it.
-unsafe impl <A> Send for Builder<A> where A: Send + Allocator {}
+unsafe impl<A> Send for Builder<A> where A: Send + Allocator {}
 
 fn _assert_kinds() {
     fn _assert_send<T: Send>() {}
@@ -304,7 +329,10 @@ fn _assert_kinds() {
     }
 }
 
-impl <A> Builder<A> where A: Allocator {
+impl<A> Builder<A>
+where
+    A: Allocator,
+{
     pub fn new(allocator: A) -> Self {
         Builder {
             arena: BuilderArenaImpl::new(allocator),
@@ -313,17 +341,22 @@ impl <A> Builder<A> where A: Allocator {
     }
 
     fn get_root_internal<'a>(&'a mut self) -> any_pointer::Builder<'a> {
-        use ::traits::ImbueMut;
+        use traits::ImbueMut;
         if self.arena.len() == 0 {
-            self.arena.allocate_segment(1).expect("allocate root pointer");
+            self.arena
+                .allocate_segment(1)
+                .expect("allocate root pointer");
             self.arena.allocate(0, 1).expect("allocate root pointer");
         }
         let (seg_start, _seg_len) = self.arena.get_segment_mut(0);
         let location: *mut Word = seg_start;
-        let Builder { ref mut arena, ref mut cap_table } = *self;
+        let Builder {
+            ref mut arena,
+            ref mut cap_table,
+        } = *self;
 
-        let mut result = any_pointer::Builder::new(
-            layout::PointerBuilder::get_root(arena, 0, location));
+        let mut result =
+            any_pointer::Builder::new(layout::PointerBuilder::get_root(arena, 0, location));
         result.imbue_mut(cap_table);
         result
     }
@@ -344,10 +377,14 @@ impl <A> Builder<A> where A: Allocator {
         if self.arena.len() == 0 {
             any_pointer::Reader::new(layout::PointerReader::new_default()).get_as()
         } else {
-            use ::traits::Imbue;
+            use traits::Imbue;
             let (segment_start, _segment_len) = try!(self.arena.get_segment(0));
             let pointer_reader = try!(layout::PointerReader::get_root(
-                self.arena.as_reader(), 0, segment_start, 0x7fffffff));
+                self.arena.as_reader(),
+                0,
+                segment_start,
+                0x7fffffff
+            ));
             let mut root = any_pointer::Reader::new(pointer_reader);
             root.imbue(&self.cap_table);
             root.get_as()
@@ -362,7 +399,9 @@ impl <A> Builder<A> where A: Allocator {
 
     pub fn set_root_canonical<To, From: SetPointerBuilder<To>>(&mut self, value: From) -> Result<()> {
         if self.arena.len() == 0 {
-            self.arena.allocate_segment(1).expect("allocate root pointer");
+            self.arena
+                .allocate_segment(1)
+                .expect("allocate root pointer");
             self.arena.allocate(0, 1).expect("allocate root pointer");
         }
         let (seg_start, _seg_len) = self.arena.get_segment_mut(0);
@@ -377,14 +416,20 @@ impl <A> Builder<A> where A: Allocator {
     }
 
     pub fn into_reader(self) -> Reader<Builder<A>> {
-        Reader::new(self, ReaderOptions {
-            traversal_limit_in_words: u64::max_value(),
-            nesting_limit: i32::max_value()
-        })
+        Reader::new(
+            self,
+            ReaderOptions {
+                traversal_limit_in_words: u64::max_value(),
+                nesting_limit: i32::max_value(),
+            },
+        )
     }
 }
 
-impl <A> ReaderSegments for Builder<A> where A: Allocator {
+impl<A> ReaderSegments for Builder<A>
+where
+    A: Allocator,
+{
     fn get_segment<'a>(&'a self, id: u32) -> Option<&'a [Word]> {
         self.get_segments_for_output().get(id as usize).map(|x| *x)
     }
@@ -404,7 +449,7 @@ pub struct HeapAllocator {
 #[derive(Clone, Copy, Debug)]
 pub enum AllocationStrategy {
     FixedSize,
-    GrowHeuristically
+    GrowHeuristically,
 }
 
 pub const SUGGESTED_FIRST_SEGMENT_WORDS: u32 = 1024;
@@ -412,9 +457,11 @@ pub const SUGGESTED_ALLOCATION_STRATEGY: AllocationStrategy = AllocationStrategy
 
 impl HeapAllocator {
     pub fn new() -> HeapAllocator {
-        HeapAllocator { owned_memory: Vec::new(),
-                        next_size: SUGGESTED_FIRST_SEGMENT_WORDS,
-                        allocation_strategy: SUGGESTED_ALLOCATION_STRATEGY }
+        HeapAllocator {
+            owned_memory: Vec::new(),
+            next_size: SUGGESTED_FIRST_SEGMENT_WORDS,
+            allocation_strategy: SUGGESTED_ALLOCATION_STRATEGY,
+        }
     }
 
     pub fn first_segment_words(mut self, value: u32) -> HeapAllocator {
@@ -422,7 +469,7 @@ impl HeapAllocator {
         self
     }
 
-    pub fn allocation_strategy(mut self, value : AllocationStrategy) -> HeapAllocator {
+    pub fn allocation_strategy(mut self, value: AllocationStrategy) -> HeapAllocator {
         self.allocation_strategy = value;
         self
     }
@@ -436,8 +483,10 @@ unsafe impl Allocator for HeapAllocator {
         self.owned_memory.push(new_words);
 
         match self.allocation_strategy {
-            AllocationStrategy::GrowHeuristically => { self.next_size += size; }
-            _ => { }
+            AllocationStrategy::GrowHeuristically => {
+                self.next_size += size;
+            }
+            _ => {}
         }
         (ptr, size as u32)
     }
@@ -455,9 +504,12 @@ pub struct ScratchSpace<'a> {
     in_use: bool,
 }
 
-impl <'a> ScratchSpace<'a> {
+impl<'a> ScratchSpace<'a> {
     pub fn new(slice: &'a mut [Word]) -> ScratchSpace<'a> {
-        ScratchSpace { slice: slice, in_use: false }
+        ScratchSpace {
+            slice: slice,
+            in_use: false,
+        }
     }
 }
 
@@ -466,31 +518,40 @@ pub struct ScratchSpaceHeapAllocator<'a, 'b: 'a> {
     allocator: HeapAllocator,
 }
 
-impl <'a, 'b: 'a> ScratchSpaceHeapAllocator<'a, 'b> {
+impl<'a, 'b: 'a> ScratchSpaceHeapAllocator<'a, 'b> {
     pub fn new(scratch_space: &'a mut ScratchSpace<'b>) -> ScratchSpaceHeapAllocator<'a, 'b> {
-        ScratchSpaceHeapAllocator { scratch_space: scratch_space,
-                                    allocator: HeapAllocator::new()}
+        ScratchSpaceHeapAllocator {
+            scratch_space: scratch_space,
+            allocator: HeapAllocator::new(),
+        }
     }
 
     pub fn second_segment_words(self, value: u32) -> ScratchSpaceHeapAllocator<'a, 'b> {
-        ScratchSpaceHeapAllocator { scratch_space: self.scratch_space,
-                                    allocator: self.allocator.first_segment_words(value) }
-
+        ScratchSpaceHeapAllocator {
+            scratch_space: self.scratch_space,
+            allocator: self.allocator.first_segment_words(value),
+        }
     }
 
-    pub fn allocation_strategy(self, value: AllocationStrategy) -> ScratchSpaceHeapAllocator<'a, 'b> {
-        ScratchSpaceHeapAllocator { scratch_space: self.scratch_space,
-                                    allocator: self.allocator.allocation_strategy(value) }
+    pub fn allocation_strategy(
+        self,
+        value: AllocationStrategy,
+    ) -> ScratchSpaceHeapAllocator<'a, 'b> {
+        ScratchSpaceHeapAllocator {
+            scratch_space: self.scratch_space,
+            allocator: self.allocator.allocation_strategy(value),
+        }
     }
-
 }
 
-
-unsafe impl <'a, 'b: 'a> Allocator for ScratchSpaceHeapAllocator<'a, 'b> {
+unsafe impl<'a, 'b: 'a> Allocator for ScratchSpaceHeapAllocator<'a, 'b> {
     fn allocate_segment(&mut self, minimum_size: u32) -> (*mut Word, u32) {
         if !self.scratch_space.in_use {
             self.scratch_space.in_use = true;
-            (self.scratch_space.slice.as_mut_ptr(), self.scratch_space.slice.len() as u32)
+            (
+                self.scratch_space.slice.as_mut_ptr(),
+                self.scratch_space.slice.len() as u32,
+            )
         } else {
             self.allocator.allocate_segment(minimum_size)
         }

@@ -11,6 +11,7 @@ documentation = "http://docs.capnproto-rust.org/capnp_rpc/"
 categories = ["network-programming"]
 
 readme = "README.md"
+autoexamples = false
 
 [lib]
 

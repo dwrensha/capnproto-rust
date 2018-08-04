@@ -20,18 +20,17 @@
 
 use capnp::{any_pointer, message, Word};
 
+use codegen::FormattedText::{Branch, Indent, Line};
 use codegen::{FormattedText, GeneratorContext};
-use codegen::FormattedText::{Indent, Line, Branch};
-use codegen_types::{ Leaf, RustTypeInfo };
-use schema_capnp::{type_};
+use codegen_types::{Leaf, RustTypeInfo};
+use schema_capnp::type_;
 
 pub fn generate_pointer_constant(
     gen: &GeneratorContext,
     styled_name: &str,
     typ: type_::Reader,
-    value: any_pointer::Reader)
-    -> ::capnp::Result<FormattedText>
-{
+    value: any_pointer::Reader,
+) -> ::capnp::Result<FormattedText> {
     let allocator = message::HeapAllocator::new()
         .first_segment_words(try!(value.target_size()).word_count as u32 + 1);
     let mut message = message::Builder::new(allocator);
@@ -41,16 +40,22 @@ pub fn generate_pointer_constant(
     for &word in words {
         let tmp = &[word];
         let bytes = Word::words_to_bytes(tmp);
-        words_lines.push(Line(
-            format!("capnp_word!({}, {}, {}, {}, {}, {}, {}, {}),",
-                    bytes[0], bytes[1], bytes[2], bytes[3],
-                    bytes[4], bytes[5], bytes[6], bytes[7])));
+        words_lines.push(Line(format!(
+            "capnp_word!({}, {}, {}, {}, {}, {}, {}, {}),",
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
+        )));
     }
     Ok(Branch(vec![
-        Line(format!("pub static {}: ::capnp::constant::Reader<{}> = {{",
-                     styled_name, try!(typ.type_string(gen, Leaf::Owned)))),
+        Line(format!(
+            "pub static {}: ::capnp::constant::Reader<{}> = {{",
+            styled_name,
+            try!(typ.type_string(gen, Leaf::Owned))
+        )),
         Indent(Box::new(Branch(vec![
-            Line(format!("static WORDS: [::capnp::Word; {}] = [", words.len())),
+            Line(format!(
+                "static WORDS: [::capnp::Word; {}] = [",
+                words.len()
+            )),
             Indent(Box::new(Branch(words_lines))),
             Line("];".to_string()),
             Line("::capnp::constant::Reader {".into()),
@@ -60,6 +65,6 @@ pub fn generate_pointer_constant(
             ]))),
             Line("}".into()),
         ]))),
-        Line("};".to_string())
+        Line("};".to_string()),
     ]))
 }

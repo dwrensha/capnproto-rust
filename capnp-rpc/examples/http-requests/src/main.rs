@@ -19,15 +19,16 @@
 // THE SOFTWARE.
 
 extern crate capnp;
-#[macro_use] extern crate capnp_rpc;
+#[macro_use]
+extern crate capnp_rpc;
+extern crate curl;
 extern crate futures;
-extern crate tokio_io;
 extern crate tokio_core;
 extern crate tokio_curl;
-extern crate curl;
+extern crate tokio_io;
 
 pub mod http_capnp {
-  include!(concat!(env!("OUT_DIR"), "/http_capnp.rs"));
+    include!(concat!(env!("OUT_DIR"), "/http_capnp.rs"));
 }
 
 pub mod client;
@@ -39,7 +40,7 @@ pub fn main() {
         match &args[1][..] {
             "client" => return client::main(),
             "server" => return server::main(),
-            _ => ()
+            _ => (),
         }
     }
 

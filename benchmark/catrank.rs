@@ -19,13 +19,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use common::*;
 use catrank_capnp::*;
+use common::*;
 
 #[derive(Clone, Copy)]
 pub struct ScoredResult<'a> {
     score: f64,
-    result: search_result::Reader<'a>
+    result: search_result::Reader<'a>,
 }
 
 const URL_PREFIX: &'static str = "http://example.com";
@@ -50,7 +50,9 @@ impl ::TestCase for CatRank {
 
             let url_prefix_length = URL_PREFIX.as_bytes().len();
             {
-                let mut url = result.reborrow().init_url(url_size + url_prefix_length as u32);
+                let mut url = result
+                    .reborrow()
+                    .init_url(url_size + url_prefix_length as u32);
 
                 url.push_str(URL_PREFIX);
                 for _ in 0..url_size {
@@ -70,8 +72,12 @@ impl ::TestCase for CatRank {
             for _ in 0..prefix {
                 snippet.push_str(WORDS[rng.next_less_than(WORDS.len() as u32) as usize]);
             }
-            if is_cat { snippet.push_str("cat ") }
-            if is_dog { snippet.push_str("dog ") }
+            if is_cat {
+                snippet.push_str("cat ")
+            }
+            if is_dog {
+                snippet.push_str("dog ")
+            }
 
             let suffix = rng.next_less_than(20) as usize;
             for _ in 0..suffix {
@@ -84,9 +90,11 @@ impl ::TestCase for CatRank {
         good_count
     }
 
-    fn handle_request(&self, request: search_result_list::Reader,
-                      response: search_result_list::Builder) -> ::capnp::Result<()>
-    {
+    fn handle_request(
+        &self,
+        request: search_result_list::Reader,
+        response: search_result_list::Builder,
+    ) -> ::capnp::Result<()> {
         let mut scored_results: Vec<ScoredResult> = Vec::new();
 
         let results = try!(request.get_results());
@@ -100,12 +108,20 @@ impl ::TestCase for CatRank {
             if snippet.contains(" dog ") {
                 score /= 10000.0;
             }
-            scored_results.push(ScoredResult {score : score, result : result});
+            scored_results.push(ScoredResult {
+                score: score,
+                result: result,
+            });
         }
 
         // sort in decreasing order
-        scored_results.sort_by(|v1, v2| { if v1.score < v2.score { ::std::cmp::Ordering::Greater }
-                                          else { ::std::cmp::Ordering::Less } });
+        scored_results.sort_by(|v1, v2| {
+            if v1.score < v2.score {
+                ::std::cmp::Ordering::Greater
+            } else {
+                ::std::cmp::Ordering::Less
+            }
+        });
 
         let mut list = response.init_results(scored_results.len() as u32);
         for i in 0..list.len() {
@@ -119,10 +135,12 @@ impl ::TestCase for CatRank {
         Ok(())
     }
 
-    fn check_response(&self, response: search_result_list::Reader, expected_good_count: i32)
-                      -> ::capnp::Result<()>
-    {
-        let mut good_count : i32 = 0;
+    fn check_response(
+        &self,
+        response: search_result_list::Reader,
+        expected_good_count: i32,
+    ) -> ::capnp::Result<()> {
+        let mut good_count: i32 = 0;
         let results = try!(response.get_results());
         for result in results.iter() {
             if result.get_score() > 1001.0 {
@@ -135,8 +153,10 @@ impl ::TestCase for CatRank {
         if good_count == expected_good_count {
             Ok(())
         } else {
-            Err(::capnp::Error::failed(
-                format!("check_response() expected {} but got {}", expected_good_count, good_count)))
+            Err(::capnp::Error::failed(format!(
+                "check_response() expected {} but got {}",
+                expected_good_count, good_count
+            )))
         }
     }
 }

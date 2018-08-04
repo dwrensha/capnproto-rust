@@ -19,25 +19,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use capnp_rpc::{RpcSystem, twoparty, rpc_twoparty_capnp};
 use calculator_capnp::calculator;
 use capnp::capability::Promise;
+use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
 
 use futures::Future;
-use tokio_io::{AsyncRead};
+use tokio_io::AsyncRead;
 
 #[derive(Clone, Copy)]
 pub struct PowerFunction;
 
 impl calculator::function::Server for PowerFunction {
-    fn call(&mut self,
-            params: calculator::function::CallParams,
-            mut results: calculator::function::CallResults)
-        -> Promise<(), ::capnp::Error>
-    {
+    fn call(
+        &mut self,
+        params: calculator::function::CallParams,
+        mut results: calculator::function::CallResults,
+    ) -> Promise<(), ::capnp::Error> {
         let params = pry!(pry!(params.get()).get_params());
         if params.len() != 2 {
-            Promise::err(::capnp::Error::failed("Wrong number of parameters".to_string()))
+            Promise::err(::capnp::Error::failed(
+                "Wrong number of parameters".to_string(),
+            ))
         } else {
             results.get().set_value(params.get(0).powf(params.get(1)));
             Promise::ok(())
@@ -61,15 +63,21 @@ fn try_main(args: Vec<String>) -> Result<(), ::capnp::Error> {
     let mut core = try!(::tokio_core::reactor::Core::new());
     let handle = core.handle();
 
-    let addr = try!(args[2].to_socket_addrs()).next().expect("could not parse address");
-    let stream = core.run(::tokio_core::net::TcpStream::connect(&addr, &handle)).unwrap();
+    let addr = try!(args[2].to_socket_addrs())
+        .next()
+        .expect("could not parse address");
+    let stream = core
+        .run(::tokio_core::net::TcpStream::connect(&addr, &handle))
+        .unwrap();
     try!(stream.set_nodelay(true));
     let (reader, writer) = stream.split();
 
-    let network =
-        Box::new(twoparty::VatNetwork::new(reader, writer,
-                                           rpc_twoparty_capnp::Side::Client,
-                                           Default::default()));
+    let network = Box::new(twoparty::VatNetwork::new(
+        reader,
+        writer,
+        rpc_twoparty_capnp::Side::Client,
+        Default::default(),
+    ));
     let mut rpc_system = RpcSystem::new(network, None);
     let calculator: calculator::Client = rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
     handle.spawn(rpc_system.map_err(|_e| ()));
@@ -193,22 +201,38 @@ fn try_main(args: Vec<String>) -> Result<(), ::capnp::Error> {
             let mut add3_call = add3_request.get().init_expression().init_call();
             add3_call.set_function(add.clone());
             let mut add3_params = add3_call.init_params(2);
-            add3_params.reborrow().get(0).set_previous_result(multiply_result.clone());
+            add3_params
+                .reborrow()
+                .get(0)
+                .set_previous_result(multiply_result.clone());
             add3_params.reborrow().get(1).set_literal(3.0);
         }
 
-        let add3_promise = add3_request.send().pipeline.get_value().read_request().send();
+        let add3_promise = add3_request
+            .send()
+            .pipeline
+            .get_value()
+            .read_request()
+            .send();
 
         let mut add5_request = calculator.evaluate_request();
         {
             let mut add5_call = add5_request.get().init_expression().init_call();
             add5_call.set_function(add);
             let mut add5_params = add5_call.init_params(2);
-            add5_params.reborrow().get(0).set_previous_result(multiply_result);
+            add5_params
+                .reborrow()
+                .get(0)
+                .set_previous_result(multiply_result);
             add5_params.get(1).set_literal(5.0);
         }
 
-        let add5_promise = add5_request.send().pipeline.get_value().read_request().send();
+        let add5_promise = add5_request
+            .send()
+            .pipeline
+            .get_value()
+            .read_request()
+            .send();
 
         // Now wait for the results.
         assert!(try!(try!(core.run(add3_promise.promise)).get()).get_value() == 27.0);
@@ -297,7 +321,12 @@ fn try_main(args: Vec<String>) -> Result<(), ::capnp::Error> {
             f_params.reborrow().get(0).set_literal(12.0);
             f_params.get(1).set_literal(34.0);
         }
-        let f_eval_promise = f_eval_request.send().pipeline.get_value().read_request().send();
+        let f_eval_promise = f_eval_request
+            .send()
+            .pipeline
+            .get_value()
+            .read_request()
+            .send();
 
         let mut g_eval_request = calculator.evaluate_request();
         {
@@ -305,7 +334,12 @@ fn try_main(args: Vec<String>) -> Result<(), ::capnp::Error> {
             g_call.set_function(g);
             g_call.init_params(1).get(0).set_literal(21.0);
         }
-        let g_eval_promise = g_eval_request.send().pipeline.get_value().read_request().send();
+        let g_eval_promise = g_eval_request
+            .send()
+            .pipeline
+            .get_value()
+            .read_request()
+            .send();
 
         assert!(try!(try!(core.run(f_eval_promise.promise)).get()).get_value() == 1234.0);
         assert!(try!(try!(core.run(g_eval_promise.promise)).get()).get_value() == 4244.0);
@@ -340,7 +374,9 @@ fn try_main(args: Vec<String>) -> Result<(), ::capnp::Error> {
         {
             let mut pow_call = request.get().init_expression().init_call();
             pow_call.set_function(
-                calculator::function::ToClient::new(PowerFunction).from_server::<::capnp_rpc::Server>());
+                calculator::function::ToClient::new(PowerFunction)
+                    .from_server::<::capnp_rpc::Server>(),
+            );
             let mut pow_params = pow_call.init_params(2);
             pow_params.reborrow().get(0).set_literal(2.0);
 

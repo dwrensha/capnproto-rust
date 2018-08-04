@@ -1,7 +1,7 @@
 extern crate capnpc;
 
 fn main() {
-     capnpc::CompilerCommand::new()
+    capnpc::CompilerCommand::new()
         .file("test.capnp")
         .file("schema/test-in-dir.capnp")
         .file("schema-with-src-prefix/test-in-src-prefix-dir.capnp")

@@ -18,20 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use std::io;
 use futures::future::Future;
 use futures::stream::Stream;
 use futures::{Async, Poll};
+use std::io;
 
-use capnp::{Error, message};
+use capnp::{message, Error};
 
 #[must_use = "streams do nothing unless polled"]
-pub struct ReadStream<R> where R: io::Read {
+pub struct ReadStream<R>
+where
+    R: io::Read,
+{
     options: message::ReaderOptions,
     read: ::serialize::Read<R>,
 }
 
-impl <R> ReadStream<R> where R: io::Read {
+impl<R> ReadStream<R>
+where
+    R: io::Read,
+{
     pub fn new(reader: R, options: message::ReaderOptions) -> ReadStream<R> {
         ReadStream {
             read: ::serialize::read_message(reader, options),
@@ -40,7 +46,10 @@ impl <R> ReadStream<R> where R: io::Read {
     }
 }
 
-impl <R> Stream for ReadStream<R> where R: io::Read {
+impl<R> Stream for ReadStream<R>
+where
+    R: io::Read,
+{
     type Item = message::Reader<::serialize::OwnedSegments>;
     type Error = Error;
 

@@ -19,24 +19,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use capnp_rpc::{RpcSystem, twoparty, rpc_twoparty_capnp};
+use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
 use pubsub_capnp::{publisher, subscriber};
 
 use capnp::capability::Promise;
 
+use futures::Future;
 use tokio_core::reactor;
 use tokio_io::AsyncRead;
-use futures::Future;
 
 struct SubscriberImpl;
 
 impl subscriber::Server<::capnp::text::Owned> for SubscriberImpl {
-    fn push_message(&mut self,
-                    params: subscriber::PushMessageParams<::capnp::text::Owned>,
-                    _results: subscriber::PushMessageResults<::capnp::text::Owned>)
-        -> Promise<(), ::capnp::Error>
-    {
-        println!("message from publisher: {}", pry!(pry!(params.get()).get_message()));
+    fn push_message(
+        &mut self,
+        params: subscriber::PushMessageParams<::capnp::text::Owned>,
+        _results: subscriber::PushMessageResults<::capnp::text::Owned>,
+    ) -> Promise<(), ::capnp::Error> {
+        println!(
+            "message from publisher: {}",
+            pry!(pry!(params.get()).get_message())
+        );
         Promise::ok(())
     }
 }
@@ -52,15 +55,23 @@ pub fn main() {
     let mut core = reactor::Core::new().unwrap();
     let handle = core.handle();
 
-    let addr = args[2].to_socket_addrs().unwrap().next().expect("could not parse address");
-    let stream = core.run(::tokio_core::net::TcpStream::connect(&addr, &handle)).unwrap();
+    let addr = args[2]
+        .to_socket_addrs()
+        .unwrap()
+        .next()
+        .expect("could not parse address");
+    let stream = core
+        .run(::tokio_core::net::TcpStream::connect(&addr, &handle))
+        .unwrap();
     stream.set_nodelay(true).unwrap();
     let (reader, writer) = stream.split();
 
-    let rpc_network =
-        Box::new(twoparty::VatNetwork::new(reader, writer,
-                                           rpc_twoparty_capnp::Side::Client,
-                                           Default::default()));
+    let rpc_network = Box::new(twoparty::VatNetwork::new(
+        reader,
+        writer,
+        rpc_twoparty_capnp::Side::Client,
+        Default::default(),
+    ));
 
     let mut rpc_system = RpcSystem::new(rpc_network, None);
     let publisher: publisher::Client<::capnp::text::Owned> =

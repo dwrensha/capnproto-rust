@@ -33,11 +33,11 @@ macro_rules! zero_impl(
     )
 );
 
-zero_impl!(u8,  0);
+zero_impl!(u8, 0);
 zero_impl!(u16, 0);
 zero_impl!(u32, 0);
 zero_impl!(u64, 0);
-zero_impl!(i8,  0);
+zero_impl!(i8, 0);
 zero_impl!(i16, 0);
 zero_impl!(i32, 0);
 zero_impl!(i64, 0);

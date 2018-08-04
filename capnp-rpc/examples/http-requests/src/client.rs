@@ -19,12 +19,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use capnp_rpc::{RpcSystem, twoparty, rpc_twoparty_capnp};
-use http_capnp::{outgoing_http};
+use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
+use http_capnp::outgoing_http;
 
+use futures::Future;
 use tokio_core::reactor;
 use tokio_io::AsyncRead;
-use futures::Future;
 
 pub fn main() {
     use std::net::ToSocketAddrs;
@@ -37,19 +37,26 @@ pub fn main() {
     let mut core = reactor::Core::new().unwrap();
     let handle = core.handle();
 
-    let addr = args[2].to_socket_addrs().unwrap().next().expect("could not parse address");
-    let stream = core.run(::tokio_core::net::TcpStream::connect(&addr, &handle)).unwrap();
+    let addr = args[2]
+        .to_socket_addrs()
+        .unwrap()
+        .next()
+        .expect("could not parse address");
+    let stream = core
+        .run(::tokio_core::net::TcpStream::connect(&addr, &handle))
+        .unwrap();
     stream.set_nodelay(true).unwrap();
     let (reader, writer) = stream.split();
 
-    let rpc_network =
-        Box::new(twoparty::VatNetwork::new(reader, writer,
-                                           rpc_twoparty_capnp::Side::Client,
-                                           Default::default()));
+    let rpc_network = Box::new(twoparty::VatNetwork::new(
+        reader,
+        writer,
+        rpc_twoparty_capnp::Side::Client,
+        Default::default(),
+    ));
 
     let mut rpc_system = RpcSystem::new(rpc_network, None);
-    let proxy: outgoing_http::Client =
-        rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
+    let proxy: outgoing_http::Client = rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
 
     handle.spawn(rpc_system.map_err(|_e| ()));
 
@@ -64,21 +71,24 @@ pub fn main() {
     req_english.get().set_path("/en-US/");
 
     println!("sending two requests to https://www.rust-lang.org...");
-    let (root_response, english_response) =
-        core.run(req_root.send().promise.join(req_english.send().promise)).unwrap();
+    let (root_response, english_response) = core
+        .run(req_root.send().promise.join(req_english.send().promise))
+        .unwrap();
     {
         let root = root_response.get().unwrap();
-        println!("got body of length {} with response code of {} for /",
-                 root.get_body().unwrap().len(),
-                 root.get_response_code());
+        println!(
+            "got body of length {} with response code of {} for /",
+            root.get_body().unwrap().len(),
+            root.get_response_code()
+        );
     }
 
     {
         let english = english_response.get().unwrap();
-        println!("got body of length {} with response code of {} for /en-US/",
-                 english.get_body().unwrap().len(),
-                 english.get_response_code());
+        println!(
+            "got body of length {} with response code of {} for /en-US/",
+            english.get_body().unwrap().len(),
+            english.get_response_code()
+        );
     }
-
-
 }
