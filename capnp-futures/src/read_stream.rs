@@ -18,33 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+use futures_core::future::Future;
+use futures_io::AsyncRead;
+use futures_util::stream::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use futures::future::Future;
-use futures::stream::Stream;
-use futures::{AsyncRead};
 
-use capnp::{Error, message};
+use capnp::{message, Error};
 
-async fn read_next_message<R>(mut reader: R, options: message::ReaderOptions)
-                              -> Result<(R, Option<message::Reader<capnp::serialize::OwnedSegments>>), Error>
-    where R: AsyncRead + Unpin
+async fn read_next_message<R>(
+    mut reader: R,
+    options: message::ReaderOptions,
+) -> Result<(R, Option<message::Reader<capnp::serialize::OwnedSegments>>), Error>
+where
+    R: AsyncRead + Unpin,
 {
     let m = crate::serialize::read_message(&mut reader, options).await?;
     Ok((reader, m))
 }
 
 #[must_use = "streams do nothing unless polled"]
-pub struct ReadStream<'a, R> where R: AsyncRead + Unpin  {
+pub struct ReadStream<'a, R>
+where
+    R: AsyncRead + Unpin,
+{
     options: message::ReaderOptions,
-    read: Pin<Box<dyn Future<Output=Result<(R, Option<message::Reader<capnp::serialize::OwnedSegments>>), Error>> + 'a >>,
+    read: Pin<
+        Box<
+            dyn Future<
+                    Output = Result<
+                        (R, Option<message::Reader<capnp::serialize::OwnedSegments>>),
+                        Error,
+                    >,
+                > + 'a,
+        >,
+    >,
 }
 
-impl <'a, R> Unpin for ReadStream<'a, R> where R: AsyncRead + Unpin  {}
+impl<'a, R> Unpin for ReadStream<'a, R> where R: AsyncRead + Unpin {}
 
-impl <'a, R> ReadStream<'a, R> where R: AsyncRead + Unpin + 'a  {
-    pub fn new(reader: R, options: message::ReaderOptions) -> Self
-    {
+impl<'a, R> ReadStream<'a, R>
+where
+    R: AsyncRead + Unpin + 'a,
+{
+    pub fn new(reader: R, options: message::ReaderOptions) -> Self {
         ReadStream {
             read: Box::pin(read_next_message(reader, options)),
             options: options,
@@ -52,7 +69,10 @@ impl <'a, R> ReadStream<'a, R> where R: AsyncRead + Unpin + 'a  {
     }
 }
 
-impl <'a, R> Stream for ReadStream<'a, R> where R: AsyncRead + Unpin + 'a  {
+impl<'a, R> Stream for ReadStream<'a, R>
+where
+    R: AsyncRead + Unpin + 'a,
+{
     type Item = Result<message::Reader<capnp::serialize::OwnedSegments>, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {

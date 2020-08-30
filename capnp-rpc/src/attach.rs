@@ -18,19 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+use futures_core::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use futures::{Future};
 
-pub struct AttachFuture<F, T> where F: Future + Unpin {
+pub struct AttachFuture<F, T>
+where
+    F: Future + Unpin,
+{
     original_future: F,
     value: Option<T>,
 }
 
-impl <F,T> Unpin for AttachFuture<F, T> where F: Future + Unpin {}
+impl<F, T> Unpin for AttachFuture<F, T> where F: Future + Unpin {}
 
-impl <F, T> Future for AttachFuture<F, T>
-    where F: Future + Unpin,
+impl<F, T> Future for AttachFuture<F, T>
+where
+    F: Future + Unpin,
 {
     type Output = F::Output;
 
@@ -43,9 +47,13 @@ impl <F, T> Future for AttachFuture<F, T>
     }
 }
 
-pub trait Attach: Future where Self: Unpin {
+pub trait Attach: Future
+where
+    Self: Unpin,
+{
     fn attach<T>(self, value: T) -> AttachFuture<Self, T>
-        where Self: Sized
+    where
+        Self: Sized,
     {
         AttachFuture {
             original_future: self,
@@ -54,4 +62,4 @@ pub trait Attach: Future where Self: Unpin {
     }
 }
 
-impl <F> Attach for F where F: Future + Unpin {}
+impl<F> Attach for F where F: Future + Unpin {}

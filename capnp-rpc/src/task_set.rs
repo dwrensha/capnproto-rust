@@ -18,46 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+use futures_channel::mpsc;
+use futures_core::{Future, Stream};
+use futures_util::stream::FuturesUnordered;
+use futures_util::FutureExt;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use futures::{Future, FutureExt, Stream};
-use futures::stream::FuturesUnordered;
-use futures::channel::mpsc;
 
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 enum EnqueuedTask<E> {
-    Task(Pin<Box<dyn Future<Output=Result<(), E>>>>),
+    Task(Pin<Box<dyn Future<Output = Result<(), E>>>>),
     Terminate(Result<(), E>),
 }
 
 enum TaskInProgress<E> {
-    Task(Pin<Box<dyn Future<Output=()>>>),
+    Task(Pin<Box<dyn Future<Output = ()>>>),
     Terminate(Option<Result<(), E>>),
 }
 
-impl <E> Unpin for TaskInProgress<E> {}
+impl<E> Unpin for TaskInProgress<E> {}
 
 enum TaskDone<E> {
     Continue,
     Terminate(Result<(), E>),
 }
 
-impl <E> Future for TaskInProgress<E> {
+impl<E> Future for TaskInProgress<E> {
     type Output = TaskDone<E>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         match *self {
-            TaskInProgress::Terminate(ref mut r) =>
-                Poll::Ready(TaskDone::Terminate(r.take().unwrap())),
-            TaskInProgress::Task(ref mut f) => {
-                match f.as_mut().poll(cx) {
-                    Poll::Pending => Poll::Pending,
-                    Poll::Ready(()) => Poll::Ready(TaskDone::Continue),
-                }
+            TaskInProgress::Terminate(ref mut r) => {
+                Poll::Ready(TaskDone::Terminate(r.take().unwrap()))
             }
-
+            TaskInProgress::Task(ref mut f) => match f.as_mut().poll(cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(()) => Poll::Ready(TaskDone::Continue),
+            },
         }
     }
 }
@@ -69,10 +68,14 @@ pub struct TaskSet<E> {
     reaper: Rc<RefCell<Box<dyn TaskReaper<E>>>>,
 }
 
-impl<E> TaskSet<E> where E: 'static {
-    pub fn new(reaper: Box<dyn TaskReaper<E>>)
-               -> (TaskSetHandle<E>, TaskSet<E>)
-        where E: 'static, E: ::std::fmt::Debug,
+impl<E> TaskSet<E>
+where
+    E: 'static,
+{
+    pub fn new(reaper: Box<dyn TaskReaper<E>>) -> (TaskSetHandle<E>, TaskSet<E>)
+    where
+        E: 'static,
+        E: ::std::fmt::Debug,
     {
         let (sender, receiver) = mpsc::unbounded();
 
@@ -84,11 +87,11 @@ impl<E> TaskSet<E> where E: 'static {
 
         // If the FuturesUnordered ever gets empty, its stream will terminate, which
         // is not what we want. So we make sure there is always at least one future in it.
-        set.in_progress.push(TaskInProgress::Task(Box::pin(::futures::future::pending())));
+        set.in_progress.push(TaskInProgress::Task(Box::pin(
+            futures_util::future::pending(),
+        )));
 
-        let handle = TaskSetHandle {
-            sender: sender,
-        };
+        let handle = TaskSetHandle { sender: sender };
 
         (handle, set)
     }
@@ -96,12 +99,16 @@ impl<E> TaskSet<E> where E: 'static {
 
 #[derive(Clone)]
 pub struct TaskSetHandle<E> {
-    sender: mpsc::UnboundedSender<EnqueuedTask<E>>
+    sender: mpsc::UnboundedSender<EnqueuedTask<E>>,
 }
 
-impl <E> TaskSetHandle<E> where E: 'static {
+impl<E> TaskSetHandle<E>
+where
+    E: 'static,
+{
     pub fn add<F>(&mut self, f: F)
-        where F: Future<Output = Result<(), E>> + 'static
+    where
+        F: Future<Output = Result<(), E>> + 'static,
     {
         let _ = self.sender.unbounded_send(EnqueuedTask::Task(Box::pin(f)));
     }
@@ -111,18 +118,29 @@ impl <E> TaskSetHandle<E> where E: 'static {
     }
 }
 
-pub trait TaskReaper<E> where E: 'static
+pub trait TaskReaper<E>
+where
+    E: 'static,
 {
     fn task_succeeded(&mut self) {}
     fn task_failed(&mut self, error: E);
 }
 
-impl <E> Future for TaskSet<E> where E: 'static {
-    type Output = Result<(),E>;
+impl<E> Future for TaskSet<E>
+where
+    E: 'static,
+{
+    type Output = Result<(), E>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut enqueued_stream_complete = false;
-        if let TaskSet { enqueued: Some(ref mut enqueued), ref mut in_progress, ref reaper, ..} = self.as_mut().get_mut() {
+        if let TaskSet {
+            enqueued: Some(ref mut enqueued),
+            ref mut in_progress,
+            ref reaper,
+            ..
+        } = self.as_mut().get_mut()
+        {
             loop {
                 match Pin::new(&mut *enqueued).poll_next(cx) {
                     Poll::Pending => break,
@@ -135,19 +153,15 @@ impl <E> Future for TaskSet<E> where E: 'static {
                     }
                     Poll::Ready(Some(EnqueuedTask::Task(f))) => {
                         let reaper = Rc::downgrade(&reaper);
-                        in_progress.push(
-                            TaskInProgress::Task(Box::pin(
-                                f.map(move |r| {
-                                    match reaper.upgrade() {
-                                        None => (), // TaskSet must have been dropped.
-                                        Some(rc_reaper) => {
-                                            match r {
-                                                Ok(()) => rc_reaper.borrow_mut().task_succeeded(),
-                                                Err(e) => rc_reaper.borrow_mut().task_failed(e),
-                                            }
-                                        }
-                                    }
-                                }))));
+                        in_progress.push(TaskInProgress::Task(Box::pin(f.map(move |r| {
+                            match reaper.upgrade() {
+                                None => (), // TaskSet must have been dropped.
+                                Some(rc_reaper) => match r {
+                                    Ok(()) => rc_reaper.borrow_mut().task_succeeded(),
+                                    Err(e) => rc_reaper.borrow_mut().task_failed(e),
+                                },
+                            }
+                        }))));
                     }
                 }
             }
@@ -159,15 +173,12 @@ impl <E> Future for TaskSet<E> where E: 'static {
         loop {
             match Stream::poll_next(Pin::new(&mut self.in_progress), cx) {
                 Poll::Pending => return Poll::Pending,
-                Poll::Ready(v) => {
-                    match v {
-                        None => return Poll::Ready(Ok(())),
-                        Some(TaskDone::Continue) => (),
-                        Some(TaskDone::Terminate(Ok(()))) =>
-                            return Poll::Ready(Ok(())),
-                        Some(TaskDone::Terminate(Err(e))) => return Poll::Ready(Err(e)),
-                    }
-                }
+                Poll::Ready(v) => match v {
+                    None => return Poll::Ready(Ok(())),
+                    Some(TaskDone::Continue) => (),
+                    Some(TaskDone::Terminate(Ok(()))) => return Poll::Ready(Ok(())),
+                    Some(TaskDone::Terminate(Err(e))) => return Poll::Ready(Err(e)),
+                },
             }
         }
     }

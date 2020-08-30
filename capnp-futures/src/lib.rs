@@ -18,11 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-extern crate futures;
+extern crate futures_channel;
+extern crate futures_core;
+extern crate futures_io;
+extern crate futures_util;
 
 pub use read_stream::ReadStream;
 pub use write_queue::{write_queue, Sender};
 
-pub mod serialize;
 mod read_stream;
+pub mod serialize;
 mod write_queue;

@@ -18,11 +18,23 @@ readme = "README.md"
 name = "capnp_rpc"
 path = "src/lib.rs"
 
-[dependencies.futures]
-version = "0.3.0"
-default-features = false
-features = ["std"]
 
 [dependencies]
 capnp-futures = { version = "0.13.0", path = "../capnp-futures" }
 capnp = {version = "0.13.0", path = "../capnp"}
+futures-core = { version = "0.3.0", default-features = false }
+
+[dependencies.futures-io]
+version = "0.3.0"
+default-features = false
+features = ["std"]
+
+[dependencies.futures-util]
+version = "0.3.0"
+default-features = false
+features = ["io"]
+
+[dependencies.futures-channel]
+version = "0.3.0"
+default-features = false
+features = ["std"]

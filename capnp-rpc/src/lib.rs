@@ -58,23 +58,26 @@
 //!
 //! For a more complete example, see https://github.com/capnproto/capnproto-rust/tree/master/capnp-rpc/examples/calculator
 
-
 extern crate capnp;
 extern crate capnp_futures;
-extern crate futures;
+extern crate futures_channel;
+extern crate futures_core;
+extern crate futures_io;
+extern crate futures_util;
 
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use futures::{Future, FutureExt, TryFutureExt};
-use futures::channel::oneshot;
-use capnp::Error;
 use capnp::capability::Promise;
-use capnp::private::capability::{ClientHook};
-use std::cell::{RefCell};
-use std::rc::{Rc};
+use capnp::private::capability::ClientHook;
+use capnp::Error;
+use futures_channel::oneshot;
+use futures_core::Future;
+use futures_util::{FutureExt, TryFutureExt};
+use std::cell::RefCell;
+use std::pin::Pin;
+use std::rc::Rc;
+use std::task::{Context, Poll};
 
-use crate::task_set::TaskSet;
 pub use crate::rpc::Disconnector;
+use crate::task_set::TaskSet;
 
 /// Code generated from [rpc.capnp]
 /// (https://github.com/sandstorm-io/capnproto/blob/master/c%2B%2B/src/capnp/rpc.capnp).
@@ -90,20 +93,21 @@ pub mod rpc_twoparty_capnp;
 /// enclosing function with `Promise::err(e)`.
 #[macro_export]
 macro_rules! pry {
-    ($expr:expr) => (
+    ($expr:expr) => {
         match $expr {
             ::std::result::Result::Ok(val) => val,
             ::std::result::Result::Err(err) => {
                 return ::capnp::capability::Promise::err(::std::convert::From::from(err))
             }
-        })
+        }
+    };
 }
 
+mod attach;
 mod broken;
 mod local;
 mod queued;
 mod rpc;
-mod attach;
 mod sender_queue;
 mod split;
 mod task_set;
@@ -115,9 +119,12 @@ pub trait OutgoingMessage {
 
     /// Sends the message. Returns a promise for the message that resolves once the send has completed.
     /// Dropping the returned promise does *not* cancel the send.
-    fn send(self: Box<Self>)
-            -> (Promise<Rc<::capnp::message::Builder<::capnp::message::HeapAllocator>>, ::capnp::Error>,
-                Rc<::capnp::message::Builder<::capnp::message::HeapAllocator>>);
+    fn send(
+        self: Box<Self>,
+    ) -> (
+        Promise<Rc<::capnp::message::Builder<::capnp::message::HeapAllocator>>, ::capnp::Error>,
+        Rc<::capnp::message::Builder<::capnp::message::HeapAllocator>>,
+    );
 
     fn take(self: Box<Self>) -> ::capnp::message::Builder<::capnp::message::HeapAllocator>;
 }
@@ -163,7 +170,10 @@ pub trait VatNetwork<VatId> {
 /// An `RpcSystem` is a `Future` and needs to be driven by a task executor. A common way
 /// accomplish that is to pass the `RpcSystem` to `tokio_core::reactor::Handle::spawn()`.
 #[must_use = "futures do nothing unless polled"]
-pub struct RpcSystem<VatId> where VatId: 'static {
+pub struct RpcSystem<VatId>
+where
+    VatId: 'static,
+{
     network: Box<dyn crate::VatNetwork<VatId>>,
 
     bootstrap_cap: Box<dyn ClientHook>,
@@ -173,15 +183,15 @@ pub struct RpcSystem<VatId> where VatId: 'static {
     connection_state: Rc<RefCell<Option<Rc<rpc::ConnectionState<VatId>>>>>,
 
     tasks: TaskSet<Error>,
-    handle: crate::task_set::TaskSetHandle<Error>
+    handle: crate::task_set::TaskSetHandle<Error>,
 }
 
-impl <VatId> RpcSystem <VatId> {
+impl<VatId> RpcSystem<VatId> {
     /// Constructs a new `RpcSystem` with the given network and bootstrap capability.
     pub fn new(
         mut network: Box<dyn crate::VatNetwork<VatId>>,
-        bootstrap: Option<::capnp::capability::Client>) -> RpcSystem<VatId>
-    {
+        bootstrap: Option<::capnp::capability::Client>,
+    ) -> RpcSystem<VatId> {
         let bootstrap_cap = match bootstrap {
             Some(cap) => cap.hook,
             None => broken::new_cap(Error::failed("no bootstrap capabiity".to_string())),
@@ -215,7 +225,6 @@ impl <VatId> RpcSystem <VatId> {
             handle: handle.clone(),
         };
 
-
         let accept_loop = result.accept_loop();
         handle.add(accept_loop);
         result
@@ -223,7 +232,8 @@ impl <VatId> RpcSystem <VatId> {
 
     /// Connects to the given vat and returns its bootstrap interface.
     pub fn bootstrap<T>(&mut self, vat_id: VatId) -> T
-        where T: ::capnp::capability::FromClientHook
+    where
+        T: ::capnp::capability::FromClientHook,
     {
         let connection = match self.network.connect(vat_id) {
             Some(connection) => connection,
@@ -231,10 +241,12 @@ impl <VatId> RpcSystem <VatId> {
                 return T::new(self.bootstrap_cap.clone());
             }
         };
-        let connection_state =
-            RpcSystem::get_connection_state(self.connection_state.clone(),
-                                            self.bootstrap_cap.clone(),
-                                            connection, self.handle.clone());
+        let connection_state = RpcSystem::get_connection_state(
+            self.connection_state.clone(),
+            self.bootstrap_cap.clone(),
+            connection,
+            self.handle.clone(),
+        );
 
         let hook = rpc::ConnectionState::bootstrap(connection_state.clone());
         T::new(hook)
@@ -246,24 +258,26 @@ impl <VatId> RpcSystem <VatId> {
         let bootstrap_cap = self.bootstrap_cap.clone();
         let handle = self.handle.clone();
         Promise::from_future(self.network.accept().map_ok(move |connection| {
-            RpcSystem::get_connection_state(connection_state_ref,
-                                            bootstrap_cap,
-                                            connection,
-                                            handle);
+            RpcSystem::get_connection_state(
+                connection_state_ref,
+                bootstrap_cap,
+                connection,
+                handle,
+            );
         }))
     }
 
-    fn get_connection_state(connection_state_ref: Rc<RefCell<Option<Rc<rpc::ConnectionState<VatId>>>>>,
-                            bootstrap_cap: Box<dyn ClientHook>,
-                            connection: Box<dyn crate::Connection<VatId>>,
-                            mut handle: crate::task_set::TaskSetHandle<Error>)
-                            -> Rc<rpc::ConnectionState<VatId>>
-    {
+    fn get_connection_state(
+        connection_state_ref: Rc<RefCell<Option<Rc<rpc::ConnectionState<VatId>>>>>,
+        bootstrap_cap: Box<dyn ClientHook>,
+        connection: Box<dyn crate::Connection<VatId>>,
+        mut handle: crate::task_set::TaskSetHandle<Error>,
+    ) -> Rc<rpc::ConnectionState<VatId>> {
         // TODO this needs to be updated once we allow more general VatNetworks.
         let (tasks, result) = match *connection_state_ref.borrow() {
             Some(ref connection_state) => {
                 // return early.
-                return connection_state.clone()
+                return connection_state.clone();
             }
             None => {
                 let (on_disconnect_fulfiller, on_disconnect_promise) =
@@ -291,26 +305,34 @@ impl <VatId> RpcSystem <VatId> {
     }
 }
 
-impl <VatId> Future for RpcSystem<VatId> where VatId: 'static {
-    type Output = Result<(),Error>;
+impl<VatId> Future for RpcSystem<VatId>
+where
+    VatId: 'static,
+{
+    type Output = Result<(), Error>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         Pin::new(&mut self.tasks).poll(cx)
     }
 }
 
 /// Creates a new local RPC client of type `C` out of an object that implements a server trait `S`.
-pub fn new_client<C, S>(s: S) -> C where C: capnp::capability::FromServer<S> {
-    capnp::capability::FromClientHook::new(Box::new(
-        local::Client::new(Box::new(<C as capnp::capability::FromServer::<S>>::from_server(s)))))
+pub fn new_client<C, S>(s: S) -> C
+where
+    C: capnp::capability::FromServer<S>,
+{
+    capnp::capability::FromClientHook::new(Box::new(local::Client::new(Box::new(
+        <C as capnp::capability::FromServer<S>>::from_server(s),
+    ))))
 }
 
 /// Converts a promise for a client into a client that queues up any calls that arrive
 /// before the promise resolves.
 // TODO: figure out a better way to allow construction of promise clients.
 pub fn new_promise_client<T, F>(client_promise: F) -> T
-    where T: ::capnp::capability::FromClientHook,
-          F: ::futures::Future<Output=Result<capnp::capability::Client,Error>>,
-          F: 'static + Unpin
+where
+    T: ::capnp::capability::FromClientHook,
+    F: futures_core::Future<Output = Result<capnp::capability::Client, Error>>,
+    F: 'static + Unpin,
 {
     let mut queued_client = crate::queued::Client::new(None);
     let weak_client = Rc::downgrade(&queued_client.inner);
@@ -332,12 +354,18 @@ impl crate::task_set::TaskReaper<Error> for SystemTaskReaper {
     }
 }
 
-pub struct ImbuedMessageBuilder<A> where A: ::capnp::message::Allocator {
+pub struct ImbuedMessageBuilder<A>
+where
+    A: ::capnp::message::Allocator,
+{
     builder: ::capnp::message::Builder<A>,
     cap_table: Vec<Option<Box<dyn (::capnp::private::capability::ClientHook)>>>,
 }
 
-impl <A> ImbuedMessageBuilder<A> where A: ::capnp::message::Allocator {
+impl<A> ImbuedMessageBuilder<A>
+where
+    A: ::capnp::message::Allocator,
+{
     pub fn new(allocator: A) -> Self {
         ImbuedMessageBuilder {
             builder: ::capnp::message::Builder::new(allocator),
@@ -346,7 +374,8 @@ impl <A> ImbuedMessageBuilder<A> where A: ::capnp::message::Allocator {
     }
 
     pub fn get_root<'a, T>(&'a mut self) -> ::capnp::Result<T>
-        where T: ::capnp::traits::FromPointerBuilder<'a>
+    where
+        T: ::capnp::traits::FromPointerBuilder<'a>,
     {
         use capnp::traits::ImbueMut;
         let mut root: ::capnp::any_pointer::Builder = self.builder.get_root()?;
@@ -355,7 +384,8 @@ impl <A> ImbuedMessageBuilder<A> where A: ::capnp::message::Allocator {
     }
 
     pub fn set_root<To, From>(&mut self, value: From) -> ::capnp::Result<()>
-        where From: ::capnp::traits::SetPointerBuilder<To>
+    where
+        From: ::capnp::traits::SetPointerBuilder<To>,
     {
         use capnp::traits::ImbueMut;
         let mut root: ::capnp::any_pointer::Builder = self.builder.get_root()?;
@@ -364,6 +394,6 @@ impl <A> ImbuedMessageBuilder<A> where A: ::capnp::message::Allocator {
     }
 }
 
-fn canceled_to_error(_e: futures::channel::oneshot::Canceled) -> Error {
-        Error::failed(format!("oneshot was canceled"))
+fn canceled_to_error(_e: futures_channel::oneshot::Canceled) -> Error {
+    Error::failed(format!("oneshot was canceled"))
 }
