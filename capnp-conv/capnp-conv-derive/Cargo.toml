@@ -1,0 +1,17 @@
+[package]
+name = "capnp-conv-derive"
+version = "0.1.0"
+authors = [ "David Renshaw <dwrenshaw@gmail.com>", "real <real@freedomlayer.org>"]
+license = "MIT"
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+
+quote = "0.6.12"
+syn = "0.15.38"
+proc-macro2 = "0.4"
+heck = "0.3.1"
+
