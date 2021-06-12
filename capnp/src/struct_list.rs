@@ -133,14 +133,14 @@ impl <'a, T> FromPointerBuilder<'a> for Builder<'a, T> where T: for<'b> crate::t
             marker: PhantomData,
             builder: builder.init_struct_list(
                 size,
-                <<T as crate::traits::OwnedStruct>::Builder as HasStructSize>::struct_size())
+                <<T as crate::traits::OwnedStruct>::Builder as HasStructSize>::STRUCT_SIZE)
         }
     }
     fn get_from_pointer(builder: PointerBuilder<'a>, default: Option<&'a [crate::Word]>) -> Result<Builder<'a, T>> {
         Ok(Builder {
             marker: PhantomData,
             builder:
-            builder.get_struct_list(<<T as crate::traits::OwnedStruct>::Builder as HasStructSize>::struct_size(),
+            builder.get_struct_list(<<T as crate::traits::OwnedStruct>::Builder as HasStructSize>::STRUCT_SIZE,
                                     default)?
         })
     }

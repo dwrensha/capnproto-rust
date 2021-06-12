@@ -30,7 +30,7 @@ pub trait FromStructReader<'a> {
 }
 
 pub trait HasStructSize {
-    fn struct_size() -> StructSize;
+    const STRUCT_SIZE: StructSize;
 }
 
 pub trait IntoInternalStructReader<'a> {

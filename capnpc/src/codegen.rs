@@ -1343,19 +1343,10 @@ fn generate_node(gen: &GeneratorContext,
                 Branch(vec!(
                     Line(format!("impl <'a,{0}> ::capnp::traits::HasStructSize for Builder<'a,{0}> {1} {{",
                                  params.params, params.where_clause)),
-                    Indent(Box::new(
-                        Branch(vec!(Line("#[inline]".to_string()),
-                                    Line("fn struct_size() -> ::capnp::private::layout::StructSize { _private::STRUCT_SIZE }".to_string()))))),
+                    Indent(Box::new(Line(
+                        format!("const STRUCT_SIZE: ::capnp::private::layout::StructSize = ::capnp::private::layout::StructSize {{ data: {}, pointers: {} }};", data_size as usize, pointer_size as usize)))),
                    Line("}".to_string())));
 
-
-            private_mod_interior.push(
-                Line(
-                    "use capnp::private::layout;".to_string()));
-            private_mod_interior.push(
-                Line(
-                    format!("pub const STRUCT_SIZE: layout::StructSize = layout::StructSize {{ data: {}, pointers: {} }};",
-                            data_size as usize, pointer_size as usize)));
             private_mod_interior.push(
                 Line(
                     format!("pub const TYPE_ID: u64 = {};", format_u64(node_id))));
@@ -1368,10 +1359,10 @@ fn generate_node(gen: &GeneratorContext,
                         Box::new(
                             Branch(vec!(
                                 Line(format!("fn init_pointer(builder: ::capnp::private::layout::PointerBuilder<'a>, _size: u32) -> Builder<'a,{}> {{", params.params)),
-                                Indent(Box::new(Line("::capnp::traits::FromStructBuilder::new(builder.init_struct(_private::STRUCT_SIZE))".to_string()))),
+                                Indent(Box::new(Line("::capnp::traits::FromStructBuilder::new(builder.init_struct(<Self as ::capnp::traits::HasStructSize>::STRUCT_SIZE))".to_string()))),
                                 Line("}".to_string()),
                                 Line(format!("fn get_from_pointer(builder: ::capnp::private::layout::PointerBuilder<'a>, default: ::core::option::Option<&'a [capnp::Word]>) -> ::capnp::Result<Builder<'a,{}>> {{", params.params)),
-                                Indent(Box::new(Line("::core::result::Result::Ok(::capnp::traits::FromStructBuilder::new(builder.get_struct(_private::STRUCT_SIZE, default)?))".to_string()))),
+                                Indent(Box::new(Line("::core::result::Result::Ok(::capnp::traits::FromStructBuilder::new(builder.get_struct(<Self as ::capnp::traits::HasStructSize>::STRUCT_SIZE, default)?))".to_string()))),
                                 Line("}".to_string()))))),
                     Line("}".to_string()),
                     BlankLine]);

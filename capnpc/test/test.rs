@@ -1408,7 +1408,7 @@ mod tests {
         let mut root: test_all_types::Builder<'_> = message.init_root();
         root.set_int8_field(3);
         root.set_int16_field(0x0abb);
-        let struct_size = <test_all_types::Builder<'_> as HasStructSize>::struct_size();
+        let struct_size = <test_all_types::Builder<'_> as HasStructSize>::STRUCT_SIZE;
         {
             let raw_bytes =
                 ::capnp::raw::get_struct_data_section(root.reborrow().into_reader());
